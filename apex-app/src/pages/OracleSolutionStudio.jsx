@@ -68,6 +68,16 @@ export default function OracleSolutionStudio() {
   const [showSalesOrders, setShowSalesOrders] = useState(false);
   const [theme, setTheme] = useState('light');
 
+  // Live agent chat (real backend calls, replacing mocked free-text replies)
+  const [liveAgentId, setLiveAgentId] = useState('AP_MANAGER');
+  const [liveMessages, setLiveMessages] = useState([]); // { role: 'user'|'assistant'|'error', text }
+  const [liveConversationId, setLiveConversationId] = useState(null);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const LIVE_AGENTS = [
+    { id: 'AP_MANAGER', label: 'AP Manager' },
+    { id: 'EMPLOYEE_QUERY_AGENT', label: 'Employee Query (HR)' },
+  ];
+
   const [studioEmailOpen, setStudioEmailOpen] = useState(false);
   const [studioEmailInput, setStudioEmailInput] = useState('');
   const [studioEmails, setStudioEmails] = useState([]);
@@ -210,11 +220,39 @@ export default function OracleSolutionStudio() {
 
   function submitInput() {
     const text = chatInput.trim();
+    if (!text) return;
     if (text.toLowerCase() === 'display sales orders') {
       setShowSalesOrders(true);
       setChatInput('');
-    } else if (text) {
-      setChatInput('');
+      return;
+    }
+    setChatInput('');
+    sendLiveMessage(text);
+  }
+
+  async function sendLiveMessage(text) {
+    setLiveMessages((m) => [...m, { role: 'user', text }]);
+    setLiveLoading(true);
+    try {
+      const res = await fetch('/api/agent/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent: liveAgentId,
+          message: text,
+          conversationId: liveConversationId,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || `Request failed (${res.status})`);
+      }
+      if (data.conversationId) setLiveConversationId(data.conversationId);
+      setLiveMessages((m) => [...m, { role: 'assistant', text: data.reply || '(no response)' }]);
+    } catch (err) {
+      setLiveMessages((m) => [...m, { role: 'error', text: err.message || 'Something went wrong contacting the agent.' }]);
+    } finally {
+      setLiveLoading(false);
     }
   }
 
@@ -731,11 +769,57 @@ export default function OracleSolutionStudio() {
                   </div>
                 </div>
               )}
+
+              {liveMessages.map((m, i) => (
+                <div key={i}>
+                  {m.role === 'user' && (
+                    <div className="dc-c58">
+                      <div className="dc-c187">{m.text}</div>
+                    </div>
+                  )}
+                  {m.role === 'assistant' && (
+                    <div className="dc-c51">
+                      <div className="dc-c188">
+                        <div className="dc-c189">{activeAgent.initials}</div>
+                        <span className="dc-c190">{LIVE_AGENTS.find((a) => a.id === liveAgentId)?.label}</span>
+                        <span className="dc-c170">· Oracle Fusion AI agent</span>
+                      </div>
+                      <p className="dc-c191" style={{ whiteSpace: 'pre-wrap' }}>{m.text}</p>
+                    </div>
+                  )}
+                  {m.role === 'error' && (
+                    <div className="dc-c51" style={{ color: '#E5484D' }}>
+                      <span>Error: {m.text}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {liveLoading && (
+                <div className="dc-c51">
+                  <div className="dc-c188">
+                    <div className="dc-c189">{activeAgent.initials}</div>
+                    <span className="dc-c190">{LIVE_AGENTS.find((a) => a.id === liveAgentId)?.label}</span>
+                    <span className="dc-c170">· thinking…</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="dc-c246">
-            <div className="dc-c247">
+            <div className="dc-c247" style={{ alignItems: 'center', gap: '8px' }}>
+              <select
+                aria-label="Select Oracle Fusion agent"
+                value={liveAgentId}
+                onChange={(e) => { setLiveAgentId(e.target.value); setLiveConversationId(null); }}
+                className="dc-c248"
+                style={{ cursor: 'pointer' }}
+              >
+                {LIVE_AGENTS.map((a) => (
+                  <option key={a.id} value={a.id}>{a.label}</option>
+                ))}
+              </select>
               {(D.AGENT_PROMPTS.r2r).map(renderSuggestedPrompt)}
             </div>
             <div className="dc-c249">
@@ -753,7 +837,7 @@ export default function OracleSolutionStudio() {
                   <button className="dc-c254"><img src={up('icons/icon-174fd5b7a9.svg')} width="12" height="12" alt="" />Source</button>
                   <div className="dc-c9" />
                   <button title="Voice input" className="dc-c255"><img src={up('icons/icon-7087406766.svg')} width="15" height="15" alt="" /></button>
-                  <button title="Send" className="dc-c256" onClick={submitInput}><img src={up('icons/icon-8743b9e5a4.svg')} width="15" height="15" alt="" /></button>
+                  <button title="Send" className="dc-c256" onClick={submitInput} disabled={liveLoading} style={liveLoading ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}><img src={up('icons/icon-8743b9e5a4.svg')} width="15" height="15" alt="" /></button>
                 </div>
               </div>
             </div>
