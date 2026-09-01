@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import up from '../lib/uploads.js';
 import D from '../data/oss-data.js';
+import JobResultCard from '../components/JobResultCard.jsx';
 import '../styles/oracle-solution-studio-base.css';
 
 const ACCENT = '#E31837';
@@ -784,7 +785,7 @@ export default function OracleSolutionStudio() {
                         <span className="dc-c190">{LIVE_AGENTS.find((a) => a.id === liveAgentId)?.label}</span>
                         <span className="dc-c170">· Oracle Fusion AI agent</span>
                       </div>
-                      <p className="dc-c191" style={{ whiteSpace: 'pre-wrap' }}>{m.text}</p>
+                      <JobResultCard text={m.text} />
                     </div>
                   )}
                   {m.role === 'error' && (

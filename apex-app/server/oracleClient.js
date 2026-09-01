@@ -151,11 +151,29 @@ function extractReplyText(job) {
     job.answer,
     job.reply,
     job.responseMessage,
+    job.responseText,
+    job.text,
+    job.content,
+    job.agentResponse,
+    job.assistantResponse,
+    job.finalResponse,
     job.result?.message,
     job.result?.response,
     job.result?.output,
+    job.result?.text,
+    job.result?.content,
+    job.result?.responseText,
     job.data?.message,
     job.data?.response,
+    job.data?.text,
+    job.data?.content,
+    job.output?.text,
+    job.output?.content,
+    job.jobResult,
+    job.jobResult?.message,
+    job.jobResult?.response,
+    job.jobResult?.text,
+    job.jobResult?.content,
   ];
 
   for (const c of candidates) {
@@ -163,17 +181,46 @@ function extractReplyText(job) {
   }
 
   // Array-of-messages shape, e.g. { messages: [{ role, content }] }
-  const messageArrays = [job.messages, job.output?.messages, job.result?.messages];
+  const messageArrays = [
+    job.messages,
+    job.output?.messages,
+    job.result?.messages,
+    job.conversation,
+    job.conversation?.messages,
+  ];
   for (const arr of messageArrays) {
     if (Array.isArray(arr) && arr.length) {
-      const last = arr[arr.length - 1];
-      const text = last?.content ?? last?.text ?? last?.message;
+      // Prefer the last assistant/agent message when roles are present.
+      const assistantMsgs = arr.filter((m) => {
+        const role = (m?.role || m?.sender || m?.author || '').toString().toLowerCase();
+        return role && role !== 'user' && role !== 'human';
+      });
+      const last = (assistantMsgs.length ? assistantMsgs : arr).at(-1);
+      const text = last?.content ?? last?.text ?? last?.message ?? last?.body;
       if (typeof text === 'string' && text.trim()) return text;
       if (text) return JSON.stringify(text);
     }
   }
 
-  return null;
+  // Generic recursive fallback: find the longest plausible string value
+  // under a handful of common "text-ish" keys, anywhere in the payload.
+  const textKeyPattern = /(message|response|text|content|answer|output|result)$/i;
+  let best = null;
+  const seen = new Set();
+  const walk = (node, depth) => {
+    if (!node || typeof node !== 'object' || depth > 6 || seen.has(node)) return;
+    seen.add(node);
+    for (const [key, value] of Object.entries(node)) {
+      if (typeof value === 'string' && value.trim().length > 20 && textKeyPattern.test(key)) {
+        if (!best || value.length > best.length) best = value;
+      } else if (value && typeof value === 'object') {
+        walk(value, depth + 1);
+      }
+    }
+  };
+  walk(job, 0);
+
+  return best;
 }
 
 async function pollJob({ agentName, jobId, token, timeoutMs = 60_000, intervalMs = 1_500 }) {
