@@ -1,0 +1,4 @@
+@import './styles/dc-common.css';
+
+* { box-sizing: border-box; }
+body { margin: 0; }

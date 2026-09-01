@@ -1,0 +1,7 @@
+html,body{margin:0;padding:0;height:100%;font-family:'Instrument Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;background:#F4F5F6}
+  *{box-sizing:border-box}
+  input,button{font-family:inherit}
+  input:focus{outline:none}
+  input::placeholder{color:#8B8E93}
+  a{color:#E31837;text-decoration:none}
+  a:hover{color:#B31229;text-decoration:underline}

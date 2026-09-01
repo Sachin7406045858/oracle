@@ -1,0 +1,5 @@
+html,body{margin:0;padding:0;height:100%;font-family:'Instrument Sans',system-ui,sans-serif;background:#F7F7F8;-webkit-font-smoothing:antialiased}
+  *{box-sizing:border-box}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#C7C9CE;border-radius:6px;border:3px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-track{background:transparent}
