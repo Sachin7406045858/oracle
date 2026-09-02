@@ -64,27 +64,26 @@ dump of the payload if no text field is recognized.
 
 ## Running alongside the frontend
 
-Fastest path — one command from `apex-app/`, first time only:
+On Windows, double-click `setup.bat` (first time) then `run.bat` from the
+`apex-app` folder — `run.bat` opens the backend in its own window and runs
+the frontend in the current one. No extra npm packages required for this.
+
+Or manually, first time only:
 
 ```bash
 cd apex-app
 npm run setup            # installs both frontend and server deps
 cp server/.env.example server/.env   # then fill in real values
-npm run dev:all          # starts backend (4000) and frontend (5173) together
 ```
 
-`dev:all` runs both processes in one terminal (color-coded `frontend`/
-`backend` prefixes) via `concurrently`. Ctrl+C once stops both.
-
-If you'd rather run them separately (e.g. to watch backend logs on their
-own), that still works:
+Then run both processes (two terminals):
 
 ```bash
 # terminal 1
-cd apex-app/server && npm install && npm run dev
+cd apex-app/server && npm run dev
 
 # terminal 2
-cd apex-app && npm install && npm run dev
+cd apex-app && npm run dev
 ```
 
 The Vite dev server proxies `/api/*` requests to `http://localhost:4000`
@@ -114,9 +113,18 @@ runtime error later.
   `server/.env` (and update `apex-app/vite.config.js`'s proxy target to
   match).
 - **Frontend loads but chat always errors** — confirm the backend terminal
-  is actually running (`npm run dev:all` or the separate `server` terminal)
+  (or the "Apex Backend" window opened by `run.bat`) is actually running
   and printed `Oracle agent proxy listening on http://localhost:4000` with
   no missing-vars warning above it.
+- **`npm install` fails with `403 Forbidden ... forbidden by your security
+  policy`** — this means npm is going through a corporate registry proxy
+  (Nexus/Artifactory-style) that blocks specific packages, not a problem
+  with this project's code. It can surface on any small transitive
+  dependency, unpredictably. If it happens, note exactly which package
+  failed and ask IT/whoever manages that proxy to allowlist it, or run
+  `npm install` from a network without that restriction (e.g. a personal
+  hotspot) to get `node_modules` populated once, then copy that folder to
+  the restricted machine.
 
 ## Known limitation
 
