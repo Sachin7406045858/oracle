@@ -50,7 +50,11 @@ async function fetchNewToken() {
   }
 
   if (!res.ok) {
-    throw new Error(`Token request failed (status ${res.status}): ${JSON.stringify(json)}`);
+    const hint =
+      json.error === 'invalid_grant'
+        ? ' — the USERNAME/PASSWORD in server/.env were rejected by Oracle (expired, reset, or a typo); this is not a bug in this app, check the credentials with whoever issued them.'
+        : '';
+    throw new Error(`Token request failed (status ${res.status}): ${JSON.stringify(json)}${hint}`);
   }
   if (!json.access_token) {
     throw new Error(`Token response missing access_token: ${JSON.stringify(json)}`);

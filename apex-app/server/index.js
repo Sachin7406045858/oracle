@@ -4,6 +4,14 @@ import cors from 'cors';
 import { isKnownAgent } from './agents.js';
 import { chatWithAgent } from './oracleClient.js';
 
+const REQUIRED_VARS = ['TOKEN_URL', 'CLIENT_ID', 'CLIENT_SECRET', 'SCOPE', 'USERNAME', 'PASSWORD'];
+const missing = REQUIRED_VARS.filter((key) => !process.env[key]);
+if (missing.length) {
+  console.warn('\n⚠️  apex-app/server/.env is missing: ' + missing.join(', '));
+  console.warn('   The server will start, but /api/agent/chat will fail until these are set.');
+  console.warn('   Copy server/.env.example to server/.env, fill in the real values, then restart this process.\n');
+}
+
 const app = express();
 app.use(express.json());
 

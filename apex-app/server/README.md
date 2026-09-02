@@ -64,7 +64,20 @@ dump of the payload if no text field is recognized.
 
 ## Running alongside the frontend
 
-This is one of two processes:
+Fastest path — one command from `apex-app/`, first time only:
+
+```bash
+cd apex-app
+npm run setup            # installs both frontend and server deps
+cp server/.env.example server/.env   # then fill in real values
+npm run dev:all          # starts backend (4000) and frontend (5173) together
+```
+
+`dev:all` runs both processes in one terminal (color-coded `frontend`/
+`backend` prefixes) via `concurrently`. Ctrl+C once stops both.
+
+If you'd rather run them separately (e.g. to watch backend logs on their
+own), that still works:
 
 ```bash
 # terminal 1
@@ -77,6 +90,33 @@ cd apex-app && npm install && npm run dev
 The Vite dev server proxies `/api/*` requests to `http://localhost:4000`
 (see `apex-app/vite.config.js`), so the frontend calls relative URLs like
 `fetch('/api/agent/chat', ...)` and never needs to know the backend's host.
+
+The server checks for all required `.env` variables at startup and prints a
+clear warning (not a crash) listing exactly which ones are missing, so a
+misconfigured `.env` is obvious immediately instead of surfacing as a vague
+runtime error later.
+
+## Troubleshooting
+
+- **"Oracle OAuth credentials are not fully configured"** — `server/.env`
+  is missing one of `TOKEN_URL`, `CLIENT_ID`, `CLIENT_SECRET`, `SCOPE`,
+  `USERNAME`, `PASSWORD`. Check the startup log; it names the missing keys.
+  Common Windows pitfall: Notepad saving the file as `.env.txt` instead of
+  `.env` — verify with `dir server\.env*`.
+- **"Token request failed (status 400): ... invalid_grant ..."** — the
+  request reached Oracle correctly, but Oracle rejected the
+  username/password itself (expired, reset, or a typo). This is a
+  credentials problem with the Oracle account, not a bug in this proxy —
+  confirm the username/password still work by logging into Fusion directly,
+  or get a fresh password from whoever issued them.
+- **Backend won't start / port already in use** — another process is
+  already on port 4000; either stop it or set `PORT=<other>` in
+  `server/.env` (and update `apex-app/vite.config.js`'s proxy target to
+  match).
+- **Frontend loads but chat always errors** — confirm the backend terminal
+  is actually running (`npm run dev:all` or the separate `server` terminal)
+  and printed `Oracle agent proxy listening on http://localhost:4000` with
+  no missing-vars warning above it.
 
 ## Known limitation
 
