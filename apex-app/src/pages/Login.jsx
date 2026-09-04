@@ -51,7 +51,7 @@ export default function Login() {
         <img src={up('vertical-shot-patterns-beautiful-sand-dunes-desert.jpg')} alt="" className="dc-c62" />
         <div className="dc-c63" />
         <div className="dc-c64">
-          <h2 className="dc-c65">Oracle ERP AI Assist</h2>
+          <h2 className="dc-c65">Oracle Turning Edge</h2>
           <p className="dc-c66">Automate, analyze, and accelerate Oracle ERP.</p>
         </div>
       </div>
