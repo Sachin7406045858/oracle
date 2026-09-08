@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import up from '../lib/uploads.js';
 import D from '../data/oss-data.js';
@@ -53,23 +53,148 @@ export default function OracleSolutionStudio() {
   const [rightOpen, setRightOpen] = useState(false);
   const [leftTab, setLeftTab] = useState('fusion');
   const [externalSel, setExternalSel] = useState(null);
-  const [favsOpen, setFavsOpen] = useState(false);
   const [extQuery, setExtQuery] = useState('');
   const [extFavIds, setExtFavIds] = useState([]);
   const [extFavsOpen, setExtFavsOpen] = useState(false);
   const [agentQuery, setAgentQuery] = useState('');
   const [fusionAgentSel, setFusionAgentSel] = useState(null);
-  const [openCat, setOpenCat] = useState('Finance');
-  const [catShowAll, setCatShowAll] = useState(null);
-  const [favIds, setFavIds] = useState(['supplier-invoice', 'po-creation']);
   const [agentChat, setAgentChat] = useState(null);
   const [glReplyShown, setGlReplyShown] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [showSalesOrders, setShowSalesOrders] = useState(false);
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState('light');
   const [accentIdx, setAccentIdx] = useState(0);
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
-  const [solQuery, setSolQuery] = useState('');
+  const [agentStatusFilter, setAgentStatusFilter] = useState('active');
+
+  // Studio (right panel) state
+  const [studioEmails, setStudioEmails] = useState([]);
+  const [studioEmailInput, setStudioEmailInput] = useState('');
+  const [studioEmailOpen, setStudioEmailOpen] = useState(false);
+  const [studioEmailStatus, setStudioEmailStatus] = useState('');
+  const [studioEmailError, setStudioEmailError] = useState(false);
+  const [studioEmailSent, setStudioEmailSent] = useState(false);
+  const [studioUndoSecs, setStudioUndoSecs] = useState(0);
+  const [notes, setNotes] = useState([]);
+  const [outputs] = useState([]);
+  const undoTimerRef = useRef(null);
+
+  const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  const isAllowedEmail = (v) => isValidEmail(v) && v.toLowerCase().endsWith(D.EMAIL_DOMAIN);
+
+  function studioEmailChange(e) {
+    const v = e.target.value;
+    const bad = isValidEmail(v.trim()) && !isAllowedEmail(v.trim());
+    setStudioEmailInput(v);
+    setStudioEmailError(bad);
+    if (bad) setStudioEmailStatus(D.EMAIL_DOMAIN_MSG);
+    else setStudioEmailStatus((s) => (studioEmailError ? '' : s));
+  }
+  function studioEmailKeyDown(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const v = studioEmailInput.trim().replace(/,$/, '');
+      if (!isValidEmail(v)) return;
+      if (!isAllowedEmail(v)) {
+        setStudioEmailStatus(D.EMAIL_DOMAIN_MSG);
+        setStudioEmailError(true);
+        setStudioEmailSent(false);
+        return;
+      }
+      setStudioEmails((list) => [...new Set([...list, v])]);
+      setStudioEmailInput('');
+      setStudioEmailStatus('');
+      setStudioEmailError(false);
+    }
+  }
+  const studioSendDisabled = (() => {
+    const pending = studioEmailInput.trim();
+    const badPending = isValidEmail(pending) && !isAllowedEmail(pending);
+    return !studioEmails.length || studioEmails.some((a) => !isAllowedEmail(a)) || badPending;
+  })();
+  function studioSendEmail() {
+    if (!studioEmails.length) { setStudioEmailStatus('Add at least one address'); return; }
+    if (studioEmails.some((a) => !isAllowedEmail(a))) { setStudioEmailStatus(D.EMAIL_DOMAIN_MSG); setStudioEmailError(true); return; }
+    setStudioEmailError(false);
+    setStudioEmailStatus('Sending…');
+    setStudioEmailSent(false);
+    setTimeout(() => {
+      setStudioUndoSecs(10);
+      setStudioEmailSent(false);
+      setStudioEmailStatus('Sending in 10s — you can still revert');
+      clearInterval(undoTimerRef.current);
+      undoTimerRef.current = setInterval(() => {
+        setStudioUndoSecs((s0) => {
+          const s = s0 - 1;
+          if (s <= 0) {
+            clearInterval(undoTimerRef.current);
+            const n = studioEmails.length;
+            setStudioEmailSent(true);
+            setStudioEmailStatus('Sent to ' + n + ' recipient' + (n > 1 ? 's' : ''));
+            return 0;
+          }
+          setStudioEmailStatus('Sending in ' + s + 's — you can still revert');
+          return s;
+        });
+      }, 1000);
+    }, 600);
+  }
+  function studioUndoEmail() {
+    clearInterval(undoTimerRef.current);
+    setStudioUndoSecs(0);
+    setStudioEmailSent(false);
+    setStudioEmailStatus('Email reverted — not sent');
+  }
+  function downloadBlob(content, mime, filename) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  function studioXls() {
+    const rows = D.PO_ROWS;
+    const rowsHtml = `<tr><th>PO Number</th><th>Supplier</th><th>Amount</th><th>Due</th><th>Days Late</th><th>Impact</th></tr>` +
+      rows.map((r) => `<tr><td>${r.po}</td><td>${r.supplier}</td><td>${r.amount}</td><td>${r.due}</td><td>${r.days}</td><td>${r.impact}</td></tr>`).join('');
+    const xls = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><style>th{background:#eee}td,th{border:1px solid #ccc;padding:4px 8px}</style></head><body><table>${rowsHtml}</table></body></html>`;
+    downloadBlob(xls, 'application/vnd.ms-excel', 'Delayed_PO_Report.xls');
+  }
+  function studioPdf() {
+    const rows = D.PO_ROWS;
+    const rowsHtml = rows.map((r) => `<tr><td>${r.po}</td><td>${r.supplier}</td><td style="text-align:right">${r.amount}</td><td>${r.impact}</td></tr>`).join('');
+    const html = `<html><head><title>Delayed PO Report</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#1a1a1a}h1{font-size:18px}p{font-size:13px;line-height:1.6}table{border-collapse:collapse;width:100%;margin-top:16px;font-size:12px}th,td{border:1px solid #ddd;padding:6px 10px;text-align:left}th{background:#f4f4f4}</style></head><body><h1>Delayed PO Report</h1><p style="color:#888;font-size:11px">Generated by Oracle ERP AI Assistant · ${new Date().toLocaleDateString()}</p><p>14 purchase orders past their promised delivery date, totaling $2.41M in open value. The five highest-impact orders:</p><table><thead><tr><th>PO</th><th>Supplier</th><th>Amount</th><th>Impact</th></tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print()}</script></body></html>`;
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+  function studioToggleEmail() {
+    setStudioEmailOpen((v) => !v);
+    setStudioEmailStatus('');
+    setStudioEmailSent(false);
+  }
+  function onAddNote() {
+    const now = new Date();
+    const time = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    setNotes((n) => [{ key: Date.now(), text: '', time, saved: false }, ...n]);
+  }
+  function noteSave(key) {
+    setNotes((n) => n.map((x) => (x.key === key ? { ...x, saved: true } : x)));
+  }
+  function noteStartEdit(key) {
+    setNotes((n) => n.map((x) => (x.key === key ? { ...x, saved: false } : x)));
+  }
+  function noteEdit(key, text) {
+    setNotes((n) => n.map((x) => (x.key === key ? { ...x, text } : x)));
+  }
+  function noteRemove(key) {
+    setNotes((n) => n.filter((x) => x.key !== key));
+  }
+  const hasNotes = notes.length > 0;
+  const hasOutputs = outputs.length > 0;
+  const noOutputs = outputs.length === 0 && notes.length === 0;
 
   // Live agent chat (real backend calls, replacing mocked free-text replies)
   const [liveAgentId, setLiveAgentId] = useState('AP_MANAGER');
@@ -86,14 +211,11 @@ export default function OracleSolutionStudio() {
 
   function selectFusionAgent(a) {
     setFusionAgentSel(a.id);
-    setOpenCat(a.cat);
     setAgentChat(a.id);
     setGlReplyShown(false);
     setShowSalesOrders(false);
-  }
-  function toggleFusionFav(id, e) {
-    e.stopPropagation();
-    setFavIds((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]));
+    if (a.id === 'ap-manager') { setLiveAgentId('AP_MANAGER'); setLiveConversationId(null); }
+    if (a.id === 'emp-queries') { setLiveAgentId('EMPLOYEE_QUERY_AGENT'); setLiveConversationId(null); }
   }
 
   function selectExternal(id) {
@@ -103,16 +225,6 @@ export default function OracleSolutionStudio() {
     e.stopPropagation();
     setExtFavIds((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]));
   }
-
-  const byCat = useMemo(() => {
-    const m = {};
-    const order = [];
-    D.FUSION_AGENTS.forEach((a) => {
-      if (!m[a.cat]) { m[a.cat] = []; order.push(a.cat); }
-      m[a.cat].push(a);
-    });
-    return { m, order };
-  }, []);
 
   const searching = agentQuery.trim().length > 0;
   const searchMatches = useMemo(() => {
@@ -128,46 +240,6 @@ export default function OracleSolutionStudio() {
   }, [extQuery]);
 
   const chatAgent = D.FUSION_AGENTS.find((x) => x.id === agentChat) || { name: '', cat: '', desc: '' };
-  const isSupplierChat = agentChat === 'supplier-invoice';
-  const isGlChat = agentChat === 'gl-balance';
-
-  function agentRow(a, opts, favSet, onSelect, onFav) {
-    const active = (opts.selId === a.id);
-    const isFav = favSet.includes(a.id);
-    const bg = active ? 'var(--bg3)' : 'transparent';
-    const border = active ? 'var(--border4)' : 'transparent';
-    const iconBg = active ? ACCENT : 'var(--bg3)';
-    const iconColor = active ? '#fff' : 'var(--text1)';
-    const favTitle = isFav ? 'Remove from favorites' : 'Add to favorites';
-
-    if (opts.compact) {
-      return (
-        <div key={a.id} className="dc-c125" style={{ background: bg }} onClick={() => onSelect(a)}>
-          <div className="dc-c126" style={{ background: iconBg }}><AgentIcon d={a.icon} color={iconColor} /></div>
-          <span className="dc-c127">{a.name}</span>
-        </div>
-      );
-    }
-    const wrapClass = opts.search ? 'dc-c140' : 'dc-c134';
-    return (
-      <div key={a.id} className={wrapClass} style={{ background: bg, border: `1px solid ${border}` }} onClick={() => onSelect(a)}>
-        <div className="dc-c135" style={{ background: iconBg }}><AgentIcon d={a.icon} color={iconColor} /></div>
-        {opts.catDesc ? (
-          <div className="dc-c141">
-            <div className="dc-c142">{a.name}</div>
-            <div className="dc-c143">{a.cat} · {a.desc}</div>
-          </div>
-        ) : (
-          <span className="dc-c127">{a.name}</span>
-        )}
-        {onFav && (
-          <button title={favTitle} className="dc-c136" onClick={(e) => onFav(a.id, e)}>
-            <StarIcon filled={isFav} stroke={isFav ? '#E8B93B' : 'var(--text3)'} />
-          </button>
-        )}
-      </div>
-    );
-  }
 
   function extRow(s, compact) {
     const active = externalSel === s.id;
@@ -257,6 +329,8 @@ export default function OracleSolutionStudio() {
     '--accentText': accent.text,
     ...Object.fromEntries(Object.entries(themeVars).map(([k, v]) => [`--${k}`, v])),
   };
+
+  const showEmptyState = !agentChat && !glReplyShown && !showSalesOrders && liveMessages.length === 0 && !liveLoading;
 
   function logout() {
     localStorage.removeItem('erpAiSession');
@@ -377,6 +451,37 @@ export default function OracleSolutionStudio() {
 
             {leftTab !== 'external' ? (
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                {!searching && (
+                  <div style={{ flex: 'none', padding: '0 16px 10px', borderBottom: '1px solid var(--border3)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {[
+                        { key: 'active', label: 'ACTIVE', dot: '#4ECB71' },
+                        { key: 'inactive', label: 'LAUNCHING SOON', dot: 'var(--text3)' },
+                        { key: 'unavailable', label: 'UPCOMING', dot: '#E5484D' },
+                      ].map((g) => {
+                        const count = D.FUSION_AGENTS.filter((a) => (a.status || 'active') === g.key).length;
+                        const sel = agentStatusFilter === g.key;
+                        return (
+                          <div
+                            key={g.key}
+                            onClick={() => setAgentStatusFilter((f) => (f === g.key ? null : g.key))}
+                            style={{
+                              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                              padding: '7px 4px', borderRadius: 8, cursor: 'pointer', userSelect: 'none',
+                              background: sel ? 'var(--bg2)' : 'transparent',
+                              border: `1px solid ${sel ? 'var(--border2)' : 'transparent'}`,
+                            }}
+                          >
+                            <span style={{ width: 6, height: 6, borderRadius: 99, background: g.dot, flex: 'none' }} />
+                            <span style={{ fontSize: 10, fontWeight: 650, color: 'var(--text2)', letterSpacing: '.03em', whiteSpace: 'nowrap' }}>{g.label}</span>
+                            <span style={{ fontSize: 10, fontWeight: 650, color: 'var(--text3)' }}>{count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="dc-c118">
                   <div className="dc-c119">
                     <img src={up('icons/icon-139778027f.svg')} width="14" height="14" alt="" />
@@ -384,48 +489,27 @@ export default function OracleSolutionStudio() {
                   </div>
                 </div>
 
-                {!searching && (
-                  <div className="dc-c121">
-                    <div className="dc-c122" onClick={() => setFavsOpen((v) => !v)}>
-                      <img src={up('icons/icon-bcf1f58498.svg')} width="11" height="11" alt="" />
-                      <span className="dc-c9">FAVORITES</span>
-                      <img src={up('icons/icon-20a962e729.svg')} width="11" height="11" alt="" className="dc-c123" style={{ transform: favsOpen ? 'rotate(90deg)' : 'rotate(0deg)' }} />
-                    </div>
-                    {favsOpen && (
-                      <div className="dc-c124">
-                        {favIds.map((id) => D.FUSION_AGENTS.find((a) => a.id === id)).filter(Boolean)
-                          .map((a) => agentRow(a, { compact: true, selId: fusionAgentSel }, favIds, selectFusionAgent, toggleFusionFav))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="dc-c128">
+                <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 16px', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                   {!searching && (
-                    <div className="dc-c129">
-                      {byCat.order.map((c) => {
-                        const all = byCat.m[c];
-                        const open = openCat === c;
-                        const showAll = open && catShowAll === c;
-                        const items = showAll ? all : all.slice(0, 3);
-                        const hasMore = all.length > 3;
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {D.FUSION_AGENTS.filter((a) => !agentStatusFilter || (a.status || 'active') === agentStatusFilter).map((a) => {
+                        const meta = D.STATUS_META[a.status || 'active'];
+                        const active = fusionAgentSel === a.id;
                         return (
-                          <div key={c}>
-                            <div className="dc-c130" onClick={() => { setOpenCat(openCat === c ? null : c); setCatShowAll(null); }}>
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="dc-c123" style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}><path d="M9 18l6-6-6-6" /></svg>
-                              <span className="dc-c131">{c.toUpperCase()}</span>
-                              <span className="dc-c132">{all.length}</span>
-                            </div>
-                            {open && (
-                              <div className="dc-c133">
-                                {items.map((a) => agentRow(a, { catDesc: false, selId: fusionAgentSel }, favIds, selectFusionAgent, toggleFusionFav))}
-                                {hasMore && (
-                                  <button className="dc-c137" onClick={() => setCatShowAll(catShowAll === c ? null : c)}>
-                                    {showAll ? 'Show less' : `View all ${all.length}`}
-                                  </button>
-                                )}
-                              </div>
-                            )}
+                          <div
+                            key={a.id}
+                            onClick={() => selectFusionAgent(a)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, cursor: 'pointer',
+                              background: active ? 'var(--bg3)' : 'transparent',
+                              border: `1px solid ${active ? 'var(--border4)' : 'transparent'}`,
+                            }}
+                          >
+                            <span style={{ flex: 1, minWidth: 0, fontSize: '12.5px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
+                            <span style={{ flex: 'none', fontSize: 10, fontWeight: 600, color: 'var(--text3)', background: 'var(--bg3)', borderRadius: 99, padding: '2px 8px', letterSpacing: '.02em' }}>{a.cat}</span>
+                            <span style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: meta.color, letterSpacing: '.02em' }}>
+                              <span style={{ width: 5, height: 5, borderRadius: 99, background: meta.color }} />{meta.label}
+                            </span>
                           </div>
                         );
                       })}
@@ -434,8 +518,30 @@ export default function OracleSolutionStudio() {
                   {searching && (
                     <div>
                       <div className="dc-c138">{searchMatches.length}{searchMatches.length === 1 ? ' MATCH' : ' MATCHES'}</div>
-                      <div className="dc-c139">
-                        {searchMatches.map((a) => agentRow(a, { catDesc: true, search: true, selId: fusionAgentSel }, favIds, selectFusionAgent, toggleFusionFav))}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        {searchMatches.map((a) => {
+                          const meta = D.STATUS_META[a.status || 'active'];
+                          const active = fusionAgentSel === a.id;
+                          return (
+                            <div
+                              key={a.id}
+                              onClick={() => selectFusionAgent(a)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer',
+                                background: active ? 'var(--bg3)' : 'transparent',
+                                border: `1px solid ${active ? 'var(--border4)' : 'transparent'}`,
+                              }}
+                            >
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '12.5px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
+                                <div style={{ fontSize: 11, color: 'var(--text2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 1 }}>{a.cat} · {a.desc}</div>
+                              </div>
+                              <span style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: meta.color, letterSpacing: '.02em' }}>
+                                <span style={{ width: 5, height: 5, borderRadius: 99, background: meta.color }} />{meta.label}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -491,6 +597,20 @@ export default function OracleSolutionStudio() {
         <main data-screen-label="AI conversation workspace" className="dc-c151">
           <div className="dc-c185">
             <div className="dc-c186">
+              {showEmptyState && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '60px 20px', gap: 18, minHeight: '60vh' }}>
+                  <div style={{ width: 56, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="40" height="40" viewBox="0 0 24 24">
+                      <path d="M12 2.5c.5 3.6 1.4 5.9 3 7.5s3.9 2.5 7.5 3c-3.6.5-5.9 1.4-7.5 3s-2.5 3.9-3 7.5c-.5-3.6-1.4-5.9-3-7.5s-3.9-2.5-7.5-3c3.6-.5 5.9-1.4 7.5-3s2.5-3.9 3-7.5z" fill="var(--text2)" opacity="0.92" />
+                    </svg>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 520 }}>
+                    <h2 style={{ margin: 0, fontSize: 18, fontWeight: 400, letterSpacing: '-.01em', color: 'var(--text0b)', fontFamily: 'Geist' }}>Ask anything</h2>
+                    <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--text2)' }}>Pick an agent from the left, or type a question below.<br />I&rsquo;ll route it to the right agent and pull live answers from your connected sources.</p>
+                  </div>
+                </div>
+              )}
+
               {glReplyShown && (
                 <div>
                   <div className="dc-c58">
@@ -551,70 +671,6 @@ export default function OracleSolutionStudio() {
                       <span className="dc-c161">{(chatAgent.cat || '').toUpperCase()}</span>
                     </div>
                     <p className="dc-c191">{chatAgent.desc}</p>
-
-                    {isSupplierChat && (
-                      <div className="dc-c167">
-                        <div className="dc-c168">
-                          <span className="dc-c169">RECENT SUPPLIER INVOICES</span>
-                          <span className="dc-c170">Oracle Fusion Payables · demo data</span>
-                        </div>
-                        <div className="dc-c171">
-                          <table className="dc-c172">
-                            <thead>
-                              <tr className="dc-c173">
-                                <th className="dc-c174">INVOICE #</th>
-                                <th className="dc-c174">SUPPLIER</th>
-                                <th className="dc-c174">PO REF</th>
-                                <th className="dc-c175">AMOUNT</th>
-                                <th className="dc-c174">DUE DATE</th>
-                                <th className="dc-c174">STATUS</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {D.SUPPLIER_INVOICE_ROWS.map((r) => (
-                                <tr className="dc-c176" key={r.inv}>
-                                  <td className="dc-c177">{r.inv}</td>
-                                  <td className="dc-c178">{r.supplier}</td>
-                                  <td className="dc-c179">{r.po}</td>
-                                  <td className="dc-c180">{r.amount}</td>
-                                  <td className="dc-c181">{r.due}</td>
-                                  <td className="dc-c182"><span className="dc-c183" style={{ color: r.badgeColor, background: r.badgeBg }}>{r.status}</span></td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-
-                    {isGlChat && (
-                      <div className="dc-c167">
-                        <div className="dc-c168">
-                          <span className="dc-c169">LEDGER BALANCES · JUN FY26</span>
-                          <span className="dc-c170">Oracle Fusion General Ledger · demo data</span>
-                        </div>
-                        <div className="dc-c171">
-                          <table className="dc-c172">
-                            <thead>
-                              <tr className="dc-c173">
-                                <th className="dc-c237">ACCOUNT</th>
-                                <th className="dc-c238">NET BALANCE</th>
-                                <th className="dc-c237">STATUS</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {D.GL_BALANCE_ROWS.map((r) => (
-                                <tr className="dc-c176" key={r.account}>
-                                  <td className="dc-c233">{r.account}</td>
-                                  <td className="dc-c239">{r.net}</td>
-                                  <td className="dc-c240"><span className="dc-c183" style={{ color: r.badgeColor, background: r.badgeBg }}>{r.status}</span></td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
@@ -753,30 +809,113 @@ export default function OracleSolutionStudio() {
           </div>
         </main>
 
-        {/* RIGHT: ORACLE SOLUTIONS */}
+        {/* RIGHT: STUDIO */}
         {rightOpen ? (
-          <aside data-screen-label="Oracle Solutions panel" className="dc-c108" style={{ width: 336 }}>
-            <div className="dc-c109">
-              <span className="dc-c110">Oracle Solutions</span>
-              <div className="dc-c111">
-                <span className="dc-c112">0 solutions</span>
-                <button title="Collapse panel" className="dc-c113" onClick={() => setRightOpen(false)}>
-                  <img src={up('icons/icon-bea1ab8c8a.svg')} width="15" height="15" alt="" />
-                </button>
+          <aside data-screen-label="Studio panel" className="dc-c108" style={{ width: 308 }}>
+            <div style={{ padding: '16px 16px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '14.5px', fontWeight: 650 }}>Studio</span>
+              <button title="Collapse panel" className="dc-c113" onClick={() => setRightOpen(false)}>
+                <img src={up('icons/icon-bea1ab8c8a.svg')} width="15" height="15" alt="" />
+              </button>
+            </div>
+
+            <div style={{ padding: '0 12px 4px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              <div onClick={studioXls} title="Download current output as Excel" style={{ background: 'var(--bg2)', border: '1px solid var(--border1)', borderRadius: 12, padding: '14px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text1)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9.5 12.5l5 5M14.5 12.5l-5 5" /></svg>
+                <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--text0)' }}>XLS</span>
+              </div>
+              <div onClick={studioPdf} title="Download current output as PDF" style={{ background: 'var(--bg2)', border: '1px solid var(--border1)', borderRadius: 12, padding: '14px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text1)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 16.5h1.2a1.3 1.3 0 0 0 0-2.6H9V17M13.2 13.9v3.6M17 13.9h-1.7v3.6M15.3 15.7h1.4" /></svg>
+                <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--text0)' }}>PDF</span>
+              </div>
+              <div onClick={studioToggleEmail} title="Email current output" style={{ background: studioEmailOpen ? 'var(--bg3)' : 'var(--bg2)', border: '1px solid var(--border1)', borderRadius: 12, padding: '14px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text1)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16v16H4zM22 6l-10 7L2 6" /></svg>
+                <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--text0)' }}>Email</span>
               </div>
             </div>
 
-            <div className="dc-c118">
-              <div className="dc-c119">
-                <img src={up('icons/icon-139778027f.svg')} width="14" height="14" alt="" />
-                <input placeholder="Search solutions" className="dc-c120" value={solQuery} onChange={(e) => setSolQuery(e.target.value)} />
+            {studioEmailOpen && (
+              <div style={{ margin: '8px 12px 0', border: '1px solid var(--border1)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg2)' }}>
+                <span style={{ fontSize: 11, fontWeight: 650, color: 'var(--text2)', letterSpacing: '.03em' }}>SEND TO</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {studioEmails.map((addr) => (
+                    <span key={addr} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg3)', borderRadius: 99, padding: '5px 6px 5px 11px', fontSize: '11.5px', color: 'var(--text0)' }}>
+                      {addr}
+                      <button onClick={() => setStudioEmails((list) => list.filter((a) => a !== addr))} style={{ width: 16, height: 16, border: 'none', background: 'transparent', borderRadius: '50%', cursor: 'pointer', color: 'var(--text3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <input
+                  value={studioEmailInput}
+                  onChange={studioEmailChange}
+                  onKeyDown={studioEmailKeyDown}
+                  placeholder="name@techmahindra.com — press Enter to add"
+                  style={{ border: '1px solid var(--border2)', background: 'var(--bg1)', borderRadius: 8, padding: '8px 10px', fontSize: 12, color: 'var(--text0)', outline: 'none' }}
+                />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <span style={{ fontSize: '10.5px', color: studioEmailError ? '#E5484D' : studioEmailSent ? '#3FB56C' : 'var(--text3)' }}>{studioEmailStatus}</span>
+                  {studioUndoSecs > 0 ? (
+                    <button onClick={studioUndoEmail} style={{ display: 'flex', alignItems: 'center', gap: 7, border: '1px solid var(--border2)', background: 'var(--bg1)', color: 'var(--text0)', borderRadius: 99, padding: '7px 14px', fontSize: '11.5px', fontWeight: 650, cursor: 'pointer' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6M3 13a9 9 0 1 0 3-7.7" /></svg>
+                      Undo · {studioUndoSecs}s
+                    </button>
+                  ) : (
+                    <button onClick={studioSendEmail} disabled={studioSendDisabled} style={{ border: 'none', background: 'var(--accent,#E31837)', color: '#fff', borderRadius: 99, padding: '7px 16px', fontSize: '11.5px', fontWeight: 650, cursor: studioSendDisabled ? 'not-allowed' : 'pointer', opacity: studioSendDisabled ? 0.45 : 1, transition: 'opacity .15s ease' }}>Send</button>
+                  )}
+                </div>
               </div>
+            )}
+
+            <div style={{ margin: '10px 16px 0', borderTop: '1px solid var(--border3)' }} />
+
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '10px 12px 12px', display: 'flex', flexDirection: 'column' }}>
+              {hasNotes && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                  {notes.map((n) => (
+                    <div key={n.key} style={{ border: '1px solid var(--border1)', background: 'var(--bg2)', borderRadius: 12, padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+                        <span style={{ flex: 1, fontSize: '10.5px', fontWeight: 650, color: 'var(--text2)', letterSpacing: '.04em' }}>NOTE · {n.time}</span>
+                        <button title="Delete note" onClick={() => noteRemove(n.key)} style={{ width: 24, height: 24, flex: 'none', border: 'none', background: 'transparent', borderRadius: 6, cursor: 'pointer', color: 'var(--text3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                        </button>
+                      </div>
+                      {!n.saved ? (
+                        <>
+                          <textarea
+                            value={n.text}
+                            onChange={(e) => noteEdit(n.key, e.target.value)}
+                            placeholder="Write your note…"
+                            rows="3"
+                            style={{ border: 'none', background: 'transparent', resize: 'vertical', fontSize: 12, lineHeight: 1.5, color: 'var(--text0)', fontFamily: 'inherit', outline: 'none', minHeight: 44 }}
+                          />
+                          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <button onClick={() => noteSave(n.key)} style={{ border: 'none', background: 'var(--accent)', color: '#fff', borderRadius: 99, padding: '7px 18px', fontSize: 12, fontWeight: 650, cursor: 'pointer' }}>Save</button>
+                          </div>
+                        </>
+                      ) : (
+                        <div onClick={() => noteStartEdit(n.key)} title="Click to edit" style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text0)', whiteSpace: 'pre-wrap', cursor: 'text' }}>{n.text}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {noOutputs && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 8, padding: '20px 24px' }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={accent.text} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4V2M15 8v-2M11.5 5.5h-2M20.5 5.5h-2M6 22l12-12-3-3L3 19l3 3zM14 8l2 2" /></svg>
+                  <div style={{ fontSize: '12.5px', fontWeight: 650, color: accent.text }}>Export or share your output</div>
+                  <div style={{ fontSize: '11.5px', lineHeight: 1.5, color: 'var(--text2)' }}>Download the current output as XLS or PDF, or email it to your team. Notes you add are saved here.</div>
+                </div>
+              )}
             </div>
 
-            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '24px 16px', textAlign: 'center' }}>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z" /></svg>
-              <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text1)' }}>No solutions yet</span>
-              <span style={{ fontSize: '11.5px', color: 'var(--text3)', lineHeight: 1.5 }}>Solutions built from your conversations will appear here.</span>
+            <div style={{ padding: '0 12px 14px', display: 'flex', justifyContent: 'center' }}>
+              <button onClick={onAddNote} style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--border2)', background: 'var(--bg2)', color: 'var(--text0)', borderRadius: 99, padding: '9px 18px', fontSize: '12.5px', fontWeight: 650, cursor: 'pointer' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+                Add note
+              </button>
             </div>
           </aside>
         ) : (
@@ -784,8 +923,8 @@ export default function OracleSolutionStudio() {
             <button title="Expand solutions" className="dc-c149" onClick={() => setRightOpen(true)}>
               <img src={up('icons/icon-c1ca783e08.svg')} width="15" height="15" alt="" />
             </button>
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z" /></svg>
-            <span className="dc-c150">ORACLE SOLUTIONS</span>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
+            <span className="dc-c150">STUDIO</span>
           </aside>
         )}
       </div>

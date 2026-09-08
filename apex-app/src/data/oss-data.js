@@ -21,76 +21,27 @@ export default {
   ],
   "FUSION_AGENTS": [
     {
-      "id": "supplier-invoice",
-      "name": "Supplier Invoice Details",
+      "id": "emp-queries",
+      "name": "Employee Queries Agent",
+      "cat": "HR",
+      "desc": "Answers HR policy, leave, and payroll questions, and can file requests for you",
+      "icon": "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+      "status": "active"
+    },
+    {
+      "id": "ap-manager",
+      "name": "AP Manager",
       "cat": "Finance",
-      "desc": "Retrieve supplier invoice status and details",
-      "icon": "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 15h6M9 11h2"
-    },
-    {
-      "id": "customer-billing",
-      "name": "Customer Billing Invoice",
-      "cat": "Finance",
-      "desc": "Customer billing and AR invoice inquiries",
-      "icon": "M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
-    },
-    {
-      "id": "gl-balance",
-      "name": "GL Balance Agent",
-      "cat": "Finance",
-      "desc": "General ledger balance queries by period",
-      "icon": "M3 3v18h18M8 17V9M13 17V5M18 17v-6"
-    },
-    {
-      "id": "savings-leakage",
-      "name": "Procurement Savings Leakage",
-      "cat": "Procurement",
-      "desc": "Detect negotiated-savings leakage in spend",
-      "icon": "M22 12h-4l-3 9L9 3l-3 9H2"
-    },
-    {
-      "id": "supplier-risk",
-      "name": "Supplier Risk Analyzer",
-      "cat": "Procurement",
-      "desc": "Assess supplier risk and compliance exposure",
-      "icon": "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4"
-    },
-    {
-      "id": "po-creation",
-      "name": "PO Creation Agent",
-      "cat": "Procurement",
-      "desc": "Create purchase orders from requests",
-      "icon": "M6 6h15l-1.5 9h-12zM6 6L5 2H2M8 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM18 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"
-    },
-    {
-      "id": "stock-check",
-      "name": "Inventory Stock Check",
-      "cat": "Supply Chain",
-      "desc": "Check on-hand stock across warehouses",
-      "icon": "M20 7h-9M14 17H5M17 21a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM7 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"
-    },
-    {
-      "id": "goods-receipt",
-      "name": "Goods Receipt Posting",
-      "cat": "Supply Chain",
-      "desc": "Post goods receipts against open POs",
-      "icon": "M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16zM3.3 7l8.7 5 8.7-5M12 22V12"
-    },
-    {
-      "id": "margin-discount",
-      "name": "Margin & Discount",
-      "cat": "Sales",
-      "desc": "Analyze order margins and discount impact",
-      "icon": "M4 4h16v16H4zM9 9l6 6M15 9l-6 6"
-    },
-    {
-      "id": "order-issue",
-      "name": "Order Issue Resolution",
-      "cat": "Sales",
-      "desc": "Resolve sales order holds and issues",
-      "icon": "M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4L12 14.01l-3-3"
+      "desc": "Creates, holds, releases, and cancels supplier invoices in Oracle Fusion Payables",
+      "icon": "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 15h6M9 11h2",
+      "status": "active"
     }
   ],
+  "STATUS_META": {
+    "active": { "label": "Active", "color": "#4ECB71" },
+    "inactive": { "label": "Launching soon", "color": "var(--text3)" },
+    "unavailable": { "label": "Upcoming", "color": "#E5484D" }
+  },
   "EXTERNAL_AGENTS": [
     {
       "id": "docuintel",
@@ -545,6 +496,8 @@ export default {
       "name": "Oracle Database · FIN_PROD"
     }
   ],
+  "EMAIL_DOMAIN": "@techmahindra.com",
+  "EMAIL_DOMAIN_MSG": "Emails can only be sent to recipients within the Tech Mahindra organization.",
   "ACCENT_TEXT": {
     "#E31837": "#FF5C74",
     "#C74634": "#F0937A",
