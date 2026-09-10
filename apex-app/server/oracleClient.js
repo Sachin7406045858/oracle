@@ -2,15 +2,15 @@
 // password-grant credentials and never exposes them to callers of this module.
 import { AGENTS } from './agents.js';
 
-const {
-  TOKEN_URL,
-  CLIENT_ID,
-  CLIENT_SECRET,
-  SCOPE,
-  USERNAME,
-  PASSWORD,
-  FUSION_AI_BASE_URL,
-} = process.env;
+// Accept both the original unprefixed var names and the ORACLE_-prefixed
+// names from the integration spec, so either .env style works.
+const TOKEN_URL = process.env.TOKEN_URL || process.env.ORACLE_TOKEN_URL;
+const CLIENT_ID = process.env.CLIENT_ID || process.env.ORACLE_CLIENT_ID;
+const CLIENT_SECRET = process.env.CLIENT_SECRET || process.env.ORACLE_CLIENT_SECRET;
+const SCOPE = process.env.SCOPE || process.env.ORACLE_SCOPE;
+const USERNAME = process.env.USERNAME || process.env.ORACLE_USERNAME;
+const PASSWORD = process.env.PASSWORD || process.env.ORACLE_PASSWORD;
+const FUSION_AI_BASE_URL = process.env.FUSION_AI_BASE_URL || process.env.ORACLE_FUSION_AI_BASE_URL;
 
 // --- Token cache -----------------------------------------------------------
 // A single in-memory cache is fine here: this backend authenticates as one

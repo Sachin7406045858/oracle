@@ -59,9 +59,7 @@ export default function OracleSolutionStudio() {
   const [agentQuery, setAgentQuery] = useState('');
   const [fusionAgentSel, setFusionAgentSel] = useState(null);
   const [agentChat, setAgentChat] = useState(null);
-  const [glReplyShown, setGlReplyShown] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [showSalesOrders, setShowSalesOrders] = useState(false);
   const [theme, setTheme] = useState('light');
   const [accentIdx, setAccentIdx] = useState(0);
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
@@ -211,10 +209,17 @@ export default function OracleSolutionStudio() {
 
   function selectFusionAgent(a) {
     setFusionAgentSel(a.id);
+    if (a.id === 'ap-manager') {
+      // AP Manager has no static/demo placeholder response — selecting it
+      // just switches the live agent; the welcome/empty state stays until
+      // the user actually sends a message, which goes straight to the
+      // live Oracle API.
+      setAgentChat(null);
+      setLiveAgentId('AP_MANAGER');
+      setLiveConversationId(null);
+      return;
+    }
     setAgentChat(a.id);
-    setGlReplyShown(false);
-    setShowSalesOrders(false);
-    if (a.id === 'ap-manager') { setLiveAgentId('AP_MANAGER'); setLiveConversationId(null); }
     if (a.id === 'emp-queries') { setLiveAgentId('EMPLOYEE_QUERY_AGENT'); setLiveConversationId(null); }
   }
 
@@ -274,23 +279,15 @@ export default function OracleSolutionStudio() {
     );
   }
   function onPromptClick(t) {
-    if (t === 'Display Ledger, Period and financial information') {
-      setGlReplyShown(true);
-      setAgentChat(null);
-      setChatInput('');
-    } else {
-      setChatInput(t);
-    }
+    // Every suggested prompt calls the live API directly on click — no
+    // predefined/static response is ever shown for any agent.
+    setChatInput('');
+    sendLiveMessage(t);
   }
 
   function submitInput() {
     const text = chatInput.trim();
     if (!text) return;
-    if (text.toLowerCase() === 'display sales orders') {
-      setShowSalesOrders(true);
-      setChatInput('');
-      return;
-    }
     setChatInput('');
     sendLiveMessage(text);
   }
@@ -299,23 +296,28 @@ export default function OracleSolutionStudio() {
     setLiveMessages((m) => [...m, { role: 'user', text }]);
     setLiveLoading(true);
     try {
-      const res = await fetch('/api/agent/chat', {
+      const isApManager = liveAgentId === 'AP_MANAGER';
+      const res = await fetch(isApManager ? '/api/ap-manager/chat' : '/api/agent/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agent: liveAgentId,
-          message: text,
-          conversationId: liveConversationId,
-        }),
+        body: JSON.stringify(
+          isApManager
+            ? { message: text }
+            : { agent: liveAgentId, message: text, conversationId: liveConversationId }
+        ),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || `Request failed (${res.status})`);
+        // AP Manager never surfaces raw/debug error detail to the user —
+        // just the plain fallback message the backend already returns.
+        throw new Error(isApManager ? (data.error || 'Unable to get a response from AP Manager. Please try again.') : (data.error || `Request failed (${res.status})`));
       }
       if (data.conversationId) setLiveConversationId(data.conversationId);
       setLiveMessages((m) => [...m, { role: 'assistant', text: data.reply || '(no response)' }]);
     } catch (err) {
-      setLiveMessages((m) => [...m, { role: 'error', text: err.message || 'Something went wrong contacting the agent.' }]);
+      const isApManager = liveAgentId === 'AP_MANAGER';
+      const fallback = isApManager ? 'Unable to get a response from AP Manager. Please try again.' : 'Something went wrong contacting the agent.';
+      setLiveMessages((m) => [...m, { role: 'error', text: isApManager ? fallback : (err.message || fallback) }]);
     } finally {
       setLiveLoading(false);
     }
@@ -330,7 +332,7 @@ export default function OracleSolutionStudio() {
     ...Object.fromEntries(Object.entries(themeVars).map(([k, v]) => [`--${k}`, v])),
   };
 
-  const showEmptyState = !agentChat && !glReplyShown && !showSalesOrders && liveMessages.length === 0 && !liveLoading;
+  const showEmptyState = !agentChat && liveMessages.length === 0 && !liveLoading;
 
   function logout() {
     localStorage.removeItem('erpAiSession');
@@ -611,50 +613,6 @@ export default function OracleSolutionStudio() {
                 </div>
               )}
 
-              {glReplyShown && (
-                <div>
-                  <div className="dc-c58">
-                    <div className="dc-c187">Display Ledger, Period and financial information</div>
-                  </div>
-                  <div className="dc-c220">
-                    <div className="dc-c188">
-                      <div className="dc-c189">{activeAgent.initials}</div>
-                      <span className="dc-c190">{activeAgent.name}</span>
-                      <span className="dc-c170">· queried Oracle Fusion General Ledger</span>
-                    </div>
-                    <p className="dc-c191">Here are the <strong className="dc-c192">ledgers</strong> with period set and financial information from Oracle Fusion General Ledger:</p>
-                    <div className="dc-c171">
-                      <div className="dc-c230">
-                        <table className="dc-c231">
-                          <thead>
-                            <tr className="dc-c173">
-                              {['LEDGER NAME', 'PERIOD SET NAME', 'LEDGER ID', 'LEDGER TYPE CODE', 'CURRENCY CODE', 'SEQUENCING MODE CODE', 'DESCRIPTION', 'CHART OF ACCOUNTS ID', 'ACCOUNTED PERIOD TYPE'].map((h) => (
-                                <th className="dc-c232" key={h}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {D.LEDGER_ROWS.map((r) => (
-                              <tr className="dc-c176" key={r.ledgerId}>
-                                <td className="dc-c233">{r.name}</td>
-                                <td className="dc-c234">{r.periodSet}</td>
-                                <td className="dc-c235">{r.ledgerId}</td>
-                                <td className="dc-c234">{r.typeCode}</td>
-                                <td className="dc-c234">{r.currency}</td>
-                                <td className="dc-c234">{r.seqMode}</td>
-                                <td className="dc-c234">{r.desc}</td>
-                                <td className="dc-c235">{r.coaId}</td>
-                                <td className="dc-c235">{r.periodType}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {agentChat && (
                 <div>
                   <div className="dc-c58">
@@ -671,66 +629,6 @@ export default function OracleSolutionStudio() {
                       <span className="dc-c161">{(chatAgent.cat || '').toUpperCase()}</span>
                     </div>
                     <p className="dc-c191">{chatAgent.desc}</p>
-                  </div>
-                </div>
-              )}
-
-              {showSalesOrders && (
-                <div>
-                  <div className="dc-c58">
-                    <div className="dc-c187">Display sales orders</div>
-                  </div>
-                  <div className="dc-c51">
-                    <div className="dc-c188">
-                      <div className="dc-c189">{activeAgent.initials}</div>
-                      <span className="dc-c190">{activeAgent.name}</span>
-                      <span className="dc-c170">· queried Oracle ERP Cloud, Order Management</span>
-                    </div>
-                    <p className="dc-c191">Here are the <strong className="dc-c192">6 most recent sales orders</strong> from Order Management:</p>
-                    <div className="dc-c171">
-                      <div className="dc-c230">
-                        <table className="dc-c241">
-                          <thead>
-                            <tr className="dc-c173">
-                              {['ORDER NUMBER', 'ORDER LINE CREATION DATE', 'BUYER NAME', 'ACTION TYPE', 'TRANSACTION ON', 'ORDER HEADER CREATION DATE', 'STATUS', 'COMMENTS', 'SALES PERSON', 'PAYMENT TERMS', 'SUPPLIER NAME', 'FREIGHT TERMS', 'SHIPPING MODE', 'TRANSACTION TYPE', 'CUSTOMER PO NUMBER', 'BUSINESS UNIT NAME'].map((h) => (
-                                <th className="dc-c232" key={h}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {D.SALES_ORDERS.map((o) => (
-                              <tr className="dc-c176" key={o.orderNumber}>
-                                <td className="dc-c177">{o.orderNumber}</td>
-                                <td className="dc-c242">{o.lineCreationDate}</td>
-                                <td className="dc-c242">{o.buyerName}</td>
-                                <td className="dc-c242">{o.actionType}</td>
-                                <td className="dc-c242">{o.transactionOn}</td>
-                                <td className="dc-c242">{o.headerCreationDate}</td>
-                                <td className="dc-c182"><span className="dc-c183" style={{ color: o.status === 'Closed' ? '#6FCF97' : '#F0BE5C', background: o.status === 'Closed' ? '#1C2B22' : '#332A15' }}>{o.status}</span></td>
-                                <td className="dc-c242">{o.comments}</td>
-                                <td className="dc-c243">{o.flagged ? <span className="dc-c244" /> : null}</td>
-                                <td className="dc-c242">{o.paymentTerms}</td>
-                                <td className="dc-c242">{o.supplierName}</td>
-                                <td className="dc-c242">{o.freightTerms}</td>
-                                <td className="dc-c242">{o.shippingMode}</td>
-                                <td className="dc-c242">{o.transactionType}</td>
-                                <td className="dc-c242">{o.customerPo}</td>
-                                <td className="dc-c245">{o.businessUnit}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                    <div className="dc-c214">
-                      <span className="dc-c215"><span className="dc-c216">1</span>Oracle ERP Cloud · Order Management</span>
-                      <div className="dc-c9" />
-                      <div className="dc-c217">
-                        <button title="Helpful" className="dc-c218 dc-c218-hv3"><img src={up('icons/icon-e006d74f80.svg')} width="14" height="14" alt="" /></button>
-                        <button title="Copy" className="dc-c218 dc-c218-hv3"><img src={up('icons/icon-e33ae36464.svg')} width="14" height="14" alt="" /></button>
-                        <button className="dc-c219"><img src={up('icons/icon-68a0b186a7.svg')} width="13" height="13" alt="" />Add to report</button>
-                      </div>
-                    </div>
                   </div>
                 </div>
               )}
@@ -785,7 +683,7 @@ export default function OracleSolutionStudio() {
                   <option key={a.id} value={a.id}>{a.label}</option>
                 ))}
               </select>
-              {(D.AGENT_PROMPTS.r2r).map(renderSuggestedPrompt)}
+              {(liveAgentId === 'AP_MANAGER' ? D.AGENT_PROMPTS.ap : D.AGENT_PROMPTS.r2r).map(renderSuggestedPrompt)}
             </div>
             <div className="dc-c249">
               <div className="dc-c250">

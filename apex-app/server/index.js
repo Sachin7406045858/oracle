@@ -4,11 +4,18 @@ import cors from 'cors';
 import { isKnownAgent } from './agents.js';
 import { chatWithAgent } from './oracleClient.js';
 
-const REQUIRED_VARS = ['TOKEN_URL', 'CLIENT_ID', 'CLIENT_SECRET', 'SCOPE', 'USERNAME', 'PASSWORD'];
-const missing = REQUIRED_VARS.filter((key) => !process.env[key]);
+const REQUIRED_VAR_PAIRS = [
+  ['TOKEN_URL', 'ORACLE_TOKEN_URL'],
+  ['CLIENT_ID', 'ORACLE_CLIENT_ID'],
+  ['CLIENT_SECRET', 'ORACLE_CLIENT_SECRET'],
+  ['SCOPE', 'ORACLE_SCOPE'],
+  ['USERNAME', 'ORACLE_USERNAME'],
+  ['PASSWORD', 'ORACLE_PASSWORD'],
+];
+const missing = REQUIRED_VAR_PAIRS.filter(([a, b]) => !process.env[a] && !process.env[b]).map(([a, b]) => `${a} (or ${b})`);
 if (missing.length) {
   console.warn('\n⚠️  apex-app/server/.env is missing: ' + missing.join(', '));
-  console.warn('   The server will start, but /api/agent/chat will fail until these are set.');
+  console.warn('   The server will start, but /api/agent/chat and /api/ap-manager/chat will fail until these are set.');
   console.warn('   Copy server/.env.example to server/.env, fill in the real values, then restart this process.\n');
 }
 
@@ -45,6 +52,30 @@ app.post('/api/agent/chat', async (req, res) => {
   } catch (err) {
     console.error('[agent/chat] error:', err);
     res.status(502).json({ error: err.message || 'Agent request failed' });
+  }
+});
+
+// Dedicated live endpoint for the AP Manager chat: takes only { message },
+// always starts a fresh conversation (conversationId: null) per the
+// integration spec, and never leaks jobId/token/raw payload/debug info to
+// the frontend — only the extracted reply text, or a plain error message.
+app.post('/api/ap-manager/chat', async (req, res) => {
+  const { message } = req.body || {};
+
+  if (!message || typeof message !== 'string' || !message.trim()) {
+    return res.status(400).json({ error: 'message is required' });
+  }
+
+  try {
+    const { reply } = await chatWithAgent({
+      agent: 'AP_MANAGER',
+      message: message.trim(),
+      conversationId: null,
+    });
+    res.json({ reply });
+  } catch (err) {
+    console.error('[ap-manager/chat] error:', err);
+    res.status(502).json({ error: 'Unable to get a response from AP Manager. Please try again.' });
   }
 });
 
