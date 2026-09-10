@@ -12,6 +12,17 @@ const USERNAME = process.env.USERNAME || process.env.ORACLE_USERNAME;
 const PASSWORD = process.env.PASSWORD || process.env.ORACLE_PASSWORD;
 const FUSION_AI_BASE_URL = process.env.FUSION_AI_BASE_URL || process.env.ORACLE_FUSION_AI_BASE_URL;
 
+// Set ORACLE_DEBUG=1 in server/.env to print the RAW invokeAsync/status
+// JSON to this terminal (never sent to the browser) so the real field
+// names (job id, status, output) can be confirmed against production
+// Oracle responses instead of guessed. Off by default. Never logs the
+// token request/response (credentials).
+const DEBUG = process.env.ORACLE_DEBUG === '1';
+function debugLog(label, data) {
+  if (!DEBUG) return;
+  console.log(`\n[oracleClient debug] ${label}:\n${JSON.stringify(data, null, 2)}\n`);
+}
+
 // --- Token cache -----------------------------------------------------------
 // A single in-memory cache is fine here: this backend authenticates as one
 // Oracle Fusion end user (the service account above), not per-browser-user.
@@ -106,6 +117,8 @@ async function invokeAgent({ agentName, version, message, conversationId, token 
   } catch {
     throw new Error(`invokeAsync returned non-JSON response (status ${res.status}): ${text.slice(0, 500)}`);
   }
+  debugLog('invokeAsync raw response', json);
+
   if (!res.ok) {
     throw new Error(`invokeAsync failed (status ${res.status}): ${JSON.stringify(json)}`);
   }
@@ -129,6 +142,8 @@ async function getJobStatus({ agentName, jobId, token }) {
   } catch {
     throw new Error(`status endpoint returned non-JSON response (status ${res.status}): ${text.slice(0, 500)}`);
   }
+  debugLog('status raw response', json);
+
   if (!res.ok) {
     throw new Error(`status request failed (status ${res.status}): ${JSON.stringify(json)}`);
   }
