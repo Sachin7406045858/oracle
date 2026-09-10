@@ -1,4 +1,6 @@
 @echo off
+cd /d "%~dp0"
+
 echo Starting backend in a new window...
 start "Apex Backend (port 4000)" cmd /k "cd /d "%~dp0server" && npm run dev"
 
