@@ -8,7 +8,13 @@ const TOKEN_URL = process.env.TOKEN_URL || process.env.ORACLE_TOKEN_URL;
 const CLIENT_ID = process.env.CLIENT_ID || process.env.ORACLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET || process.env.ORACLE_CLIENT_SECRET;
 const SCOPE = process.env.SCOPE || process.env.ORACLE_SCOPE;
-const USERNAME = process.env.USERNAME || process.env.ORACLE_USERNAME;
+// ORACLE_USERNAME is checked FIRST here (unlike the other vars): plain
+// USERNAME is a reserved Windows environment variable that the OS always
+// sets to the logged-in user's account name, so on Windows
+// `process.env.USERNAME` is never empty and `|| process.env.ORACLE_USERNAME`
+// would never be reached, silently sending the Windows login name to
+// Oracle instead of the real Oracle username.
+const USERNAME = process.env.ORACLE_USERNAME || process.env.USERNAME;
 const PASSWORD = process.env.PASSWORD || process.env.ORACLE_PASSWORD;
 const FUSION_AI_BASE_URL = process.env.FUSION_AI_BASE_URL || process.env.ORACLE_FUSION_AI_BASE_URL;
 
