@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import './JobResultCard.css';
 
 export default function JobResultCard({ text }) {
@@ -9,7 +10,7 @@ export default function JobResultCard({ text }) {
         <span className="job-result-card__title">Job Result</span>
       </div>
       <div className="job-result-card__body">
-        <ReactMarkdown>{text}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
       </div>
     </div>
   );

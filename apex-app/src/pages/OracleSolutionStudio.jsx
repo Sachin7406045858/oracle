@@ -7,7 +7,13 @@ import RichStatCard from '../components/RichStatCard.jsx';
 import RichSubmitCard from '../components/RichSubmitCard.jsx';
 import RichSubmittedCard from '../components/RichSubmittedCard.jsx';
 import { parseRichResponse } from '../lib/richResponseParser.js';
+import { recommendAgent } from '../lib/agentRecommender.js';
 import '../styles/oracle-solution-studio-base.css';
+
+const AGENT_LABELS = {
+  AP_MANAGER: 'AP Manager',
+  EMPLOYEE_QUERY_AGENT: 'Employee Queries',
+};
 
 // Generic per-agent, per-shape quick-action suggestions shown under a rich
 // card. These are just suggested follow-up prompts (same idea as the
@@ -122,9 +128,47 @@ export default function OracleSolutionStudio() {
   const [studioUndoSecs, setStudioUndoSecs] = useState(0);
   const [notes, setNotes] = useState([]);
   const [outputs] = useState([]);
-  const [lastStatCard, setLastStatCard] = useState(null); // { title, shape } — drives the Studio export list
-  const [statCheckedRows, setStatCheckedRows] = useState({});
+  // Generic export-batch state: any agent reply that resolves to a rich
+  // "stat" shape hands Studio a batch of { label, sublabel } exportable
+  // facts. Studio renders them as a selectable checklist and exports only
+  // the items the user checks — no per-agent export logic lives here beyond
+  // building the initial items list. Shape: { title, unit, loading, error,
+  // status, items: [{ key, label, sublabel, selected }] } or null.
+  const [exportBatch, setExportBatch] = useState(null);
+  const exportBatchTimerRef = useRef(null);
+  // Context-aware agent suggestion banner above the composer.
+  const [suggestedAgent, setSuggestedAgent] = useState(null);
+  const [suggestionDismissedFor, setSuggestionDismissedFor] = useState('');
   const undoTimerRef = useRef(null);
+
+  // Generic hook: any agent hands Studio a batch of { label, sublabel } items
+  // once its response contains exportable facts. Sets loading state
+  // immediately and opens the Studio panel, then after a short delay
+  // populates the checklist. Only replaces state if the batch title still
+  // matches (avoids stale-async overwrites if a newer batch started).
+  function pushExportBatch(title, unit, items) {
+    clearTimeout(exportBatchTimerRef.current);
+    setExportBatch({ title, unit, loading: true, error: null, status: '', items: [] });
+    setRightOpen(true);
+    exportBatchTimerRef.current = setTimeout(() => {
+      setExportBatch((prev) => {
+        if (!prev || prev.title !== title) return prev;
+        return {
+          title,
+          unit,
+          loading: false,
+          error: null,
+          status: '',
+          items: items.map((it, i) => ({
+            key: `${title.replace(/\s+/g, '_')}-${i}-${Date.now()}`,
+            label: it.label,
+            sublabel: it.sublabel,
+            selected: false,
+          })),
+        };
+      });
+    }, 700);
+  }
 
   const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
   const isAllowedEmail = (v) => isValidEmail(v) && v.toLowerCase().endsWith(D.EMAIL_DOMAIN);
@@ -203,7 +247,54 @@ export default function OracleSolutionStudio() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
+  // Derived export-batch state (Studio panel). Export actions operate on the
+  // selected checklist items when a batch is active; otherwise fall back to
+  // the legacy quick-export mock.
+  const exportBatchItemsRaw = (exportBatch && exportBatch.items) || [];
+  const exportBatchSelected = exportBatchItemsRaw.filter((i) => i.selected);
+  const hasExportBatch = !!exportBatch;
+  const exportBatchReady = hasExportBatch && !exportBatch.loading && !exportBatch.error;
+  const exportBatchNoneSelected = exportBatchReady && exportBatchItemsRaw.length > 0 && exportBatchSelected.length === 0;
+  const exportButtonsDisabled = exportBatchNoneSelected;
+  const exportHint = exportBatchNoneSelected ? 'Select at least one item to export' : '';
+  const exportBatchMeta = exportBatchReady
+    ? `${exportBatchItemsRaw.length} item${exportBatchItemsRaw.length === 1 ? '' : 's'} · ${exportBatchSelected.length} selected`
+    : 'Preparing exportable items…';
+  const exportBatchHasMultiple = exportBatchReady && exportBatchItemsRaw.length > 1;
+  const selectAllLabel = exportBatchSelected.length === exportBatchItemsRaw.length && exportBatchItemsRaw.length > 0 ? 'Clear all' : 'Select all';
+
+  function onSelectAllExport() {
+    const allSelected = exportBatchSelected.length === exportBatchItemsRaw.length;
+    setExportBatch((p) => (p ? { ...p, items: p.items.map((i) => ({ ...i, selected: !allSelected })) } : p));
+  }
+  function toggleExportItem(key) {
+    setExportBatch((p) => (p ? { ...p, items: p.items.map((x) => (x.key === key ? { ...x, selected: !x.selected } : x)), status: '' } : p));
+  }
+  function exportSelectedXls() {
+    try {
+      const rowsHtml = exportBatchSelected.map((i) => `<tr><td>${i.label}</td><td>${i.sublabel}</td></tr>`).join('');
+      const xls = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><style>th{background:#eee}td,th{border:1px solid #ccc;padding:4px 8px}</style></head><body><table><tr><th>Item</th><th>Value</th></tr>${rowsHtml}</table></body></html>`;
+      downloadBlob(xls, 'application/vnd.ms-excel', exportBatch.title.replace(/\s+/g, '_') + '.xls');
+      setExportBatch((p) => (p ? { ...p, error: null, status: `Exported ${exportBatchSelected.length} item${exportBatchSelected.length > 1 ? 's' : ''} to XLS` } : p));
+    } catch {
+      setExportBatch((p) => (p ? { ...p, error: "Couldn't generate the XLS file — try again." } : p));
+    }
+  }
+  function exportSelectedPdf() {
+    try {
+      const rowsHtml = exportBatchSelected.map((i) => `<tr><td>${i.label}</td><td>${i.sublabel}</td></tr>`).join('');
+      const html = `<html><head><title>${exportBatch.title}</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#1a1a1a}h1{font-size:18px}p{font-size:13px;line-height:1.6;color:#666}table{border-collapse:collapse;width:100%;margin-top:16px;font-size:12px}th,td{border:1px solid #ddd;padding:6px 10px;text-align:left}th{background:#f4f4f4}</style></head><body><h1>${exportBatch.title}</h1><p>${exportBatchSelected.length} item${exportBatchSelected.length > 1 ? 's' : ''} selected · Generated by Oracle ERP AI Assistant · ${new Date().toLocaleDateString()}</p><table><thead><tr><th>Item</th><th>Value</th></tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print()}</script></body></html>`;
+      const w = window.open('', '_blank');
+      if (!w) throw new Error('popup-blocked');
+      w.document.write(html);
+      w.document.close();
+      setExportBatch((p) => (p ? { ...p, error: null, status: `Opened PDF with ${exportBatchSelected.length} item${exportBatchSelected.length > 1 ? 's' : ''}` } : p));
+    } catch {
+      setExportBatch((p) => (p ? { ...p, error: "Couldn't generate the PDF — check your popup blocker and try again." } : p));
+    }
+  }
   function studioXls() {
+    if (hasExportBatch) { if (!exportBatchNoneSelected) exportSelectedXls(); return; }
     const rows = D.PO_ROWS;
     const rowsHtml = `<tr><th>PO Number</th><th>Supplier</th><th>Amount</th><th>Due</th><th>Days Late</th><th>Impact</th></tr>` +
       rows.map((r) => `<tr><td>${r.po}</td><td>${r.supplier}</td><td>${r.amount}</td><td>${r.due}</td><td>${r.days}</td><td>${r.impact}</td></tr>`).join('');
@@ -211,6 +302,7 @@ export default function OracleSolutionStudio() {
     downloadBlob(xls, 'application/vnd.ms-excel', 'Delayed_PO_Report.xls');
   }
   function studioPdf() {
+    if (hasExportBatch) { if (!exportBatchNoneSelected) exportSelectedPdf(); return; }
     const rows = D.PO_ROWS;
     const rowsHtml = rows.map((r) => `<tr><td>${r.po}</td><td>${r.supplier}</td><td style="text-align:right">${r.amount}</td><td>${r.impact}</td></tr>`).join('');
     const html = `<html><head><title>Delayed PO Report</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#1a1a1a}h1{font-size:18px}p{font-size:13px;line-height:1.6}table{border-collapse:collapse;width:100%;margin-top:16px;font-size:12px}th,td{border:1px solid #ddd;padding:6px 10px;text-align:left}th{background:#f4f4f4}</style></head><body><h1>Delayed PO Report</h1><p style="color:#888;font-size:11px">Generated by Oracle ERP AI Assistant · ${new Date().toLocaleDateString()}</p><p>14 purchase orders past their promised delivery date, totaling $2.41M in open value. The five highest-impact orders:</p><table><thead><tr><th>PO</th><th>Supplier</th><th>Amount</th><th>Impact</th></tr></thead><tbody>${rowsHtml}</tbody></table><script>window.onload=function(){window.print()}</script></body></html>`;
@@ -218,6 +310,7 @@ export default function OracleSolutionStudio() {
     if (w) { w.document.write(html); w.document.close(); }
   }
   function studioToggleEmail() {
+    if (hasExportBatch && exportBatchNoneSelected) return;
     setStudioEmailOpen((v) => !v);
     setStudioEmailStatus('');
     setStudioEmailSent(false);
@@ -241,10 +334,7 @@ export default function OracleSolutionStudio() {
   }
   const hasNotes = notes.length > 0;
   const hasOutputs = outputs.length > 0;
-  const noOutputs = outputs.length === 0 && notes.length === 0 && !lastStatCard;
-  function toggleStatRow(i) {
-    setStatCheckedRows((c) => ({ ...c, [i]: c[i] === false ? true : false }));
-  }
+  const noOutputs = outputs.length === 0 && notes.length === 0 && !exportBatch;
 
   // Live agent chat (real backend calls, replacing mocked free-text replies)
   const [liveAgentId, setLiveAgentId] = useState('AP_MANAGER');
@@ -337,6 +427,30 @@ export default function OracleSolutionStudio() {
     sendLiveMessage(t);
   }
 
+  // Context-aware agent suggestion: as the user types, check if their
+  // wording strongly and unambiguously suggests the other agent. Never
+  // auto-switch — only surface a dismissible banner; the user clicks
+  // "Switch" to actually change agents.
+  useEffect(() => {
+    const suggestion = recommendAgent(chatInput, liveAgentId);
+    if (suggestion && chatInput.trim() !== suggestionDismissedFor) {
+      setSuggestedAgent(suggestion);
+    } else {
+      setSuggestedAgent(null);
+    }
+  }, [chatInput, liveAgentId, suggestionDismissedFor]);
+
+  function switchToSuggestedAgent() {
+    if (!suggestedAgent) return;
+    setLiveAgentId(suggestedAgent);
+    setLiveConversationId(null);
+    setSuggestedAgent(null);
+  }
+  function dismissSuggestion() {
+    setSuggestionDismissedFor(chatInput.trim());
+    setSuggestedAgent(null);
+  }
+
   function submitInput() {
     const text = chatInput.trim();
     if (!text) return;
@@ -370,8 +484,15 @@ export default function OracleSolutionStudio() {
       // Keep the Studio export panel's item generically in sync with the
       // last rich stat card the user saw, whichever agent produced it.
       const shape = parseRichResponse(replyText);
-      if (shape && shape.type === 'stat') {
-        setLastStatCard({ title: shape.title || shape.unit || 'Result', shape });
+      if (shape && shape.type === 'stat' && Array.isArray(shape.rows) && shape.rows.length) {
+        // Build a short title like the design's own example, e.g.
+        // "Annual Leave — 18 days remaining": prefer the shape's lead
+        // sentence/title, falling back to a heading + unit summary line.
+        const firstLine = `${shape.heading || ''}${shape.unit ? ' ' + shape.unit : ''}`.trim();
+        const title = shape.title
+          ? (firstLine ? `${shape.title} — ${firstLine}` : shape.title)
+          : (firstLine || 'Result');
+        pushExportBatch(title, shape.unit || 'item', shape.rows.map((r) => ({ label: r.label, sublabel: r.value })));
       }
     } catch (err) {
       const isApManager = liveAgentId === 'AP_MANAGER';
@@ -744,6 +865,15 @@ export default function OracleSolutionStudio() {
               </select>
               {(liveAgentId === 'AP_MANAGER' ? D.AGENT_PROMPTS.ap : D.AGENT_PROMPTS.r2r).map(renderSuggestedPrompt)}
             </div>
+            {suggestedAgent && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0 0', padding: '8px 12px', borderRadius: 10, background: 'var(--bg2)', border: '1px solid var(--border2)', fontSize: '12px', color: 'var(--text1)' }}>
+                <span style={{ flex: 1 }}>This looks like a {AGENT_LABELS[suggestedAgent]} question — switch agent?</span>
+                <button onClick={switchToSuggestedAgent} style={{ border: 'none', background: 'var(--accent,#E31837)', color: '#fff', borderRadius: 99, padding: '5px 12px', fontSize: '11.5px', fontWeight: 650, cursor: 'pointer' }}>Switch</button>
+                <button title="Dismiss" onClick={dismissSuggestion} style={{ width: 22, height: 22, border: 'none', background: 'transparent', borderRadius: '50%', cursor: 'pointer', color: 'var(--text3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                </button>
+              </div>
+            )}
             <div className="dc-c249">
               <div className="dc-c250">
                 <textarea
@@ -777,19 +907,66 @@ export default function OracleSolutionStudio() {
             </div>
 
             <div style={{ padding: '0 12px 4px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-              <div onClick={studioXls} title="Download current output as Excel" style={{ background: 'var(--bg2)', border: '1px solid var(--border1)', borderRadius: 12, padding: '14px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <div onClick={studioXls} title="Download current output as Excel" style={{ background: 'var(--bg2)', border: '1px solid var(--border1)', borderRadius: 12, padding: '14px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: exportButtonsDisabled ? 'not-allowed' : 'pointer', opacity: exportButtonsDisabled ? 0.45 : 1 }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text1)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9.5 12.5l5 5M14.5 12.5l-5 5" /></svg>
                 <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--text0)' }}>XLS</span>
               </div>
-              <div onClick={studioPdf} title="Download current output as PDF" style={{ background: 'var(--bg2)', border: '1px solid var(--border1)', borderRadius: 12, padding: '14px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <div onClick={studioPdf} title="Download current output as PDF" style={{ background: 'var(--bg2)', border: '1px solid var(--border1)', borderRadius: 12, padding: '14px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: exportButtonsDisabled ? 'not-allowed' : 'pointer', opacity: exportButtonsDisabled ? 0.45 : 1 }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text1)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 16.5h1.2a1.3 1.3 0 0 0 0-2.6H9V17M13.2 13.9v3.6M17 13.9h-1.7v3.6M15.3 15.7h1.4" /></svg>
                 <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--text0)' }}>PDF</span>
               </div>
-              <div onClick={studioToggleEmail} title="Email current output" style={{ background: studioEmailOpen ? 'var(--bg3)' : 'var(--bg2)', border: '1px solid var(--border1)', borderRadius: 12, padding: '14px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <div onClick={studioToggleEmail} title="Email current output" style={{ background: studioEmailOpen ? 'var(--bg3)' : 'var(--bg2)', border: '1px solid var(--border1)', borderRadius: 12, padding: '14px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: exportButtonsDisabled ? 'not-allowed' : 'pointer', opacity: exportButtonsDisabled ? 0.45 : 1 }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text1)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16v16H4zM22 6l-10 7L2 6" /></svg>
                 <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--text0)' }}>Email</span>
               </div>
             </div>
+
+            {exportHint && (
+              <div style={{ margin: '2px 16px 0', fontSize: '10.5px', color: 'var(--text3)', textAlign: 'center' }}>{exportHint}</div>
+            )}
+
+            {hasExportBatch && (
+              <div style={{ margin: '10px 12px 0', border: '1px solid var(--border1)', background: 'var(--bg2)', borderRadius: 12, overflow: 'hidden' }}>
+                <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, borderBottom: '1px solid var(--border3)' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 650, color: 'var(--text0)' }}>{exportBatch.title}</div>
+                    <div style={{ fontSize: '10.5px', color: 'var(--text2)', marginTop: 2 }}>{exportBatchMeta}</div>
+                  </div>
+                  {exportBatchHasMultiple && (
+                    <button onClick={onSelectAllExport} style={{ border: '1px solid var(--border2)', background: 'var(--bg1)', color: 'var(--text1)', borderRadius: 99, padding: '5px 10px', fontSize: '10.5px', fontWeight: 600, cursor: 'pointer', flex: 'none' }}>{selectAllLabel}</button>
+                  )}
+                </div>
+                {exportBatch.loading && (
+                  <div style={{ padding: '16px 12px', display: 'flex', alignItems: 'center', gap: 8, fontSize: '11.5px', color: 'var(--text2)' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accentText,#FF5C74)" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin .8s linear infinite' }}><path d="M12 2a10 10 0 0 1 10 10" /></svg>
+                    Preparing exportable items…
+                  </div>
+                )}
+                {exportBatchReady && (
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {exportBatchItemsRaw.map((it) => (
+                      <div key={it.key} onClick={() => toggleExportItem(it.key)} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 12px', cursor: 'pointer', borderTop: '1px solid var(--border3)' }}>
+                        <span style={{ width: 16, height: 16, flex: 'none', marginTop: 1, borderRadius: 4, border: `1.5px solid ${it.selected ? 'var(--accent,#E31837)' : 'var(--border4)'}`, background: it.selected ? 'var(--accent,#E31837)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .12s ease' }}>
+                          {it.selected && (
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                          )}
+                        </span>
+                        <span style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text0)' }}>{it.label}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 1 }}>{it.sublabel}</div>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {exportBatch.error && (
+                  <div style={{ padding: '10px 12px', fontSize: 11, color: '#E5484D', borderTop: '1px solid var(--border3)' }}>{exportBatch.error}</div>
+                )}
+                {exportBatch.status && (
+                  <div style={{ padding: '8px 12px', fontSize: '10.5px', color: '#3FB56C', borderTop: '1px solid var(--border3)' }}>{exportBatch.status}</div>
+                )}
+              </div>
+            )}
 
             {studioEmailOpen && (
               <div style={{ margin: '8px 12px 0', border: '1px solid var(--border1)', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg2)' }}>
@@ -828,23 +1005,6 @@ export default function OracleSolutionStudio() {
             <div style={{ margin: '10px 16px 0', borderTop: '1px solid var(--border3)' }} />
 
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '10px 12px 12px', display: 'flex', flexDirection: 'column' }}>
-              {lastStatCard && (
-                <div style={{ border: '1px solid var(--border1)', background: 'var(--bg2)', borderRadius: 12, padding: '11px 12px', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--text0)' }}>{lastStatCard.title}</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {lastStatCard.shape.rows.map((r, i) => {
-                      const checked = statCheckedRows[i] !== false;
-                      return (
-                        <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'var(--text1)', cursor: 'pointer' }}>
-                          <input type="checkbox" checked={checked} onChange={() => toggleStatRow(i)} />
-                          <span style={{ flex: 1 }}>{r.label}</span>
-                          <span style={{ fontWeight: 600, color: 'var(--text0)' }}>{r.value}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
               {hasNotes && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
                   {notes.map((n) => (

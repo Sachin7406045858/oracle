@@ -65,4 +65,51 @@
   padding: 1px 5px;
   border-radius: 4px;
   font-size: 12.5px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.job-result-card__body pre {
+  background: var(--bg2, #f0f1f3);
+  border: 1px solid var(--border2, #d8dadb);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 10px 0;
+  overflow-x: auto;
+}
+
+.job-result-card__body pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text0, #1f2933);
+  white-space: pre;
+}
+
+.job-result-card__body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 10px 0;
+  font-size: 12.5px;
+  display: block;
+  overflow-x: auto;
+}
+
+.job-result-card__body th,
+.job-result-card__body td {
+  border: 1px solid var(--border2, #d8dadb);
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.job-result-card__body th {
+  background: var(--bg3, #e8e9ec);
+  font-weight: 650;
+  color: var(--text0, #1f2933);
+}
+
+.job-result-card__body tr:nth-child(even) td {
+  background: var(--bg2, #f0f1f3);
 }
