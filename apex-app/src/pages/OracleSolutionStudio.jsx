@@ -3,7 +3,54 @@ import { useNavigate } from 'react-router-dom';
 import up from '../lib/uploads.js';
 import D from '../data/oss-data.js';
 import JobResultCard from '../components/JobResultCard.jsx';
+import RichStatCard from '../components/RichStatCard.jsx';
+import RichSubmitCard from '../components/RichSubmitCard.jsx';
+import RichSubmittedCard from '../components/RichSubmittedCard.jsx';
+import { parseRichResponse } from '../lib/richResponseParser.js';
 import '../styles/oracle-solution-studio-base.css';
+
+// Generic per-agent, per-shape quick-action suggestions shown under a rich
+// card. These are just suggested follow-up prompts (same idea as the
+// existing suggested-prompt chips elsewhere in the app) — clicking one sends
+// that exact text to the real live agent, it never fabricates a response.
+const QUICK_ACTIONS = {
+  EMPLOYEE_QUERY_AGENT: {
+    stat: ['Apply one day Annual Leave', 'Show my compensation'],
+    submitted: ['Show my leave balance'],
+  },
+  AP_MANAGER: {
+    stat: ['Show invoices on payment hold', 'Create a new invoice'],
+    submitted: ['List unpaid invoices'],
+  },
+};
+
+function AgentReply({ agentId, text, onQuickAction }) {
+  const shape = parseRichResponse(text);
+  if (!shape) return <JobResultCard text={text} />;
+  try {
+    if (shape.type === 'stat') {
+      const actions = (QUICK_ACTIONS[agentId] && QUICK_ACTIONS[agentId].stat) || [];
+      return <RichStatCard shape={shape} quickActions={actions} onQuickAction={onQuickAction} />;
+    }
+    if (shape.type === 'confirm') {
+      return (
+        <RichSubmitCard
+          shape={shape}
+          onConfirm={() => onQuickAction('Confirm & submit')}
+          onEdit={() => onQuickAction('Edit details')}
+        />
+      );
+    }
+    if (shape.type === 'submitted') {
+      const actions = (QUICK_ACTIONS[agentId] && QUICK_ACTIONS[agentId].submitted) || [];
+      return <RichSubmittedCard shape={shape} quickActions={actions} onQuickAction={onQuickAction} />;
+    }
+  } catch {
+    // Never let a rich-card rendering error blank out the response —
+    // fall through to the always-safe plain markdown rendering.
+  }
+  return <JobResultCard text={text} />;
+}
 
 const ACCENT_OPTIONS = [
   { color: '#E31837', text: '#FF5C74' },
@@ -75,6 +122,8 @@ export default function OracleSolutionStudio() {
   const [studioUndoSecs, setStudioUndoSecs] = useState(0);
   const [notes, setNotes] = useState([]);
   const [outputs] = useState([]);
+  const [lastStatCard, setLastStatCard] = useState(null); // { title, shape } — drives the Studio export list
+  const [statCheckedRows, setStatCheckedRows] = useState({});
   const undoTimerRef = useRef(null);
 
   const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -192,7 +241,10 @@ export default function OracleSolutionStudio() {
   }
   const hasNotes = notes.length > 0;
   const hasOutputs = outputs.length > 0;
-  const noOutputs = outputs.length === 0 && notes.length === 0;
+  const noOutputs = outputs.length === 0 && notes.length === 0 && !lastStatCard;
+  function toggleStatRow(i) {
+    setStatCheckedRows((c) => ({ ...c, [i]: c[i] === false ? true : false }));
+  }
 
   // Live agent chat (real backend calls, replacing mocked free-text replies)
   const [liveAgentId, setLiveAgentId] = useState('AP_MANAGER');
@@ -313,7 +365,14 @@ export default function OracleSolutionStudio() {
         throw new Error(isApManager ? (data.error || 'Unable to get a response from AP Manager. Please try again.') : (data.error || `Request failed (${res.status})`));
       }
       if (data.conversationId) setLiveConversationId(data.conversationId);
-      setLiveMessages((m) => [...m, { role: 'assistant', text: data.reply || '(no response)' }]);
+      const replyText = data.reply || '(no response)';
+      setLiveMessages((m) => [...m, { role: 'assistant', text: replyText }]);
+      // Keep the Studio export panel's item generically in sync with the
+      // last rich stat card the user saw, whichever agent produced it.
+      const shape = parseRichResponse(replyText);
+      if (shape && shape.type === 'stat') {
+        setLastStatCard({ title: shape.title || shape.unit || 'Result', shape });
+      }
     } catch (err) {
       const isApManager = liveAgentId === 'AP_MANAGER';
       const fallback = isApManager ? 'Unable to get a response from AP Manager. Please try again.' : 'Something went wrong contacting the agent.';
@@ -647,7 +706,7 @@ export default function OracleSolutionStudio() {
                         <span className="dc-c190">{LIVE_AGENTS.find((a) => a.id === liveAgentId)?.label}</span>
                         <span className="dc-c170">· Oracle Fusion AI agent</span>
                       </div>
-                      <JobResultCard text={m.text} />
+                      <AgentReply agentId={liveAgentId} text={m.text} onQuickAction={sendLiveMessage} />
                     </div>
                   )}
                   {m.role === 'error' && (
@@ -769,6 +828,23 @@ export default function OracleSolutionStudio() {
             <div style={{ margin: '10px 16px 0', borderTop: '1px solid var(--border3)' }} />
 
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '10px 12px 12px', display: 'flex', flexDirection: 'column' }}>
+              {lastStatCard && (
+                <div style={{ border: '1px solid var(--border1)', background: 'var(--bg2)', borderRadius: 12, padding: '11px 12px', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--text0)' }}>{lastStatCard.title}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {lastStatCard.shape.rows.map((r, i) => {
+                      const checked = statCheckedRows[i] !== false;
+                      return (
+                        <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'var(--text1)', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleStatRow(i)} />
+                          <span style={{ flex: 1 }}>{r.label}</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text0)' }}>{r.value}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {hasNotes && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
                   {notes.map((n) => (
