@@ -30,6 +30,31 @@ const QUICK_ACTIONS = {
   },
 };
 
+// Welcome-state copy + starter prompts shown as the very first assistant
+// bubble for each agent, before any real message has been sent. This is
+// generic UI convenience copy (never claimed to be agent-generated content)
+// — the prompts still send a real message to the live agent when clicked.
+const WELCOME_CONFIG = {
+  EMPLOYEE_QUERY_AGENT: {
+    subtext: "I can check policies, pull your balances and pay, or file requests for you — just ask, or try one of these.",
+    prompts: ['Show my leave balance', "What's my life insurance coverage?", 'Explain the payroll policy'],
+  },
+  AP_MANAGER: {
+    subtext: 'I can check invoice status, flag payment holds, or help you process approvals — just ask, or try one of these.',
+    prompts: ['Show invoices on payment hold', 'AP aging by supplier', 'Explain the Accounts Payable process'],
+  },
+};
+
+// Short, generic follow-up chips shown under every assistant reply (not
+// content-derived — just plausible next steps, same idea/shape as
+// QUICK_ACTIONS above but not tied to a specific rich-card type). Clicking
+// one sends that exact text to the live agent via sendLiveMessage, same as
+// the rich-card quick actions.
+const FOLLOWUP_SUGGESTIONS = {
+  EMPLOYEE_QUERY_AGENT: ['Show my leave balance', "What's my life insurance coverage?"],
+  AP_MANAGER: ['Show invoices on payment hold', 'List unpaid invoices'],
+};
+
 function AgentReply({ agentId, text, onQuickAction }) {
   const shape = parseRichResponse(text);
   if (!shape) return <JobResultCard text={text} />;
@@ -341,6 +366,7 @@ export default function OracleSolutionStudio() {
   const [liveMessages, setLiveMessages] = useState([]); // { role: 'user'|'assistant'|'error', text }
   const [liveConversationId, setLiveConversationId] = useState(null);
   const [liveLoading, setLiveLoading] = useState(false);
+  const [expandedSources, setExpandedSources] = useState({}); // { [messageIndex]: boolean }
   const LIVE_AGENTS = [
     { id: 'AP_MANAGER', label: 'AP Manager' },
     { id: 'EMPLOYEE_QUERY_AGENT', label: 'Employee Query (HR)' },
@@ -480,7 +506,10 @@ export default function OracleSolutionStudio() {
       }
       if (data.conversationId) setLiveConversationId(data.conversationId);
       const replyText = data.reply || '(no response)';
-      setLiveMessages((m) => [...m, { role: 'assistant', text: replyText }]);
+      // sourcesCount is real-derived-only from the backend (see
+      // server/index.js countSources) — 0/absent means no Sources pill.
+      const sourcesCount = Number.isFinite(data.sourcesCount) ? data.sourcesCount : 0;
+      setLiveMessages((m) => [...m, { role: 'assistant', text: replyText, sourcesCount }]);
       // Keep the Studio export panel's item generically in sync with the
       // last rich stat card the user saw, whichever agent produced it.
       const shape = parseRichResponse(replyText);
@@ -779,19 +808,28 @@ export default function OracleSolutionStudio() {
         <main data-screen-label="AI conversation workspace" className="dc-c151">
           <div className="dc-c185">
             <div className="dc-c186">
-              {showEmptyState && (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '60px 20px', gap: 18, minHeight: '60vh' }}>
-                  <div style={{ width: 56, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <svg width="40" height="40" viewBox="0 0 24 24">
-                      <path d="M12 2.5c.5 3.6 1.4 5.9 3 7.5s3.9 2.5 7.5 3c-3.6.5-5.9 1.4-7.5 3s-2.5 3.9-3 7.5c-.5-3.6-1.4-5.9-3-7.5s-3.9-2.5-7.5-3c3.6-.5 5.9-1.4 7.5-3s2.5-3.9 3-7.5z" fill="var(--text2)" opacity="0.92" />
-                    </svg>
+              {showEmptyState && (() => {
+                const welcome = WELCOME_CONFIG[liveAgentId] || WELCOME_CONFIG.EMPLOYEE_QUERY_AGENT;
+                const agentLabel = LIVE_AGENTS.find((a) => a.id === liveAgentId)?.label || '';
+                return (
+                  <div className="dc-c51">
+                    <div className="dc-c188">
+                      <div className="dc-c189">{activeAgent.initials}</div>
+                      <span className="dc-c190">{agentLabel}</span>
+                      <span className="dc-c170">· Oracle Fusion AI agent</span>
+                    </div>
+                    <div style={{ maxWidth: '70%', background: 'var(--bubble)', borderRadius: '4px 16px 16px 16px', padding: '13px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text0b)' }}>Hi Aarthi, how can I help?</div>
+                      <div style={{ fontSize: '12.5px', lineHeight: 1.55, color: 'var(--text2)' }}>{welcome.subtext}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {welcome.prompts.map((t, i) => (
+                        <button key={i} className="dc-c248" onClick={() => onPromptClick(t)}>{t}</button>
+                      ))}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 520 }}>
-                    <h2 style={{ margin: 0, fontSize: 18, fontWeight: 400, letterSpacing: '-.01em', color: 'var(--text0b)', fontFamily: 'Geist' }}>Ask anything</h2>
-                    <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--text2)' }}>Pick an agent from the left, or type a question below.<br />I&rsquo;ll route it to the right agent and pull live answers from your connected sources.</p>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {agentChat && (
                 <div>
@@ -817,7 +855,7 @@ export default function OracleSolutionStudio() {
                 <div key={i}>
                   {m.role === 'user' && (
                     <div className="dc-c58">
-                      <div className="dc-c187">{m.text}</div>
+                      <div className="dc-c187" style={{ background: 'var(--accent,#E31837)', color: '#fff', borderRadius: 18 }}>{m.text}</div>
                     </div>
                   )}
                   {m.role === 'assistant' && (
@@ -828,6 +866,29 @@ export default function OracleSolutionStudio() {
                         <span className="dc-c170">· Oracle Fusion AI agent</span>
                       </div>
                       <AgentReply agentId={liveAgentId} text={m.text} onQuickAction={sendLiveMessage} />
+                      {m.sourcesCount > 0 && (
+                        <div>
+                          <button
+                            className="dc-c248"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                            onClick={() => setExpandedSources((s) => ({ ...s, [i]: !s[i] }))}
+                          >
+                            📄 Sources ({m.sourcesCount})
+                          </button>
+                          {expandedSources[i] && (
+                            <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--text2)' }}>
+                              {m.sourcesCount} source{m.sourcesCount > 1 ? 's' : ''} found
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {(FOLLOWUP_SUGGESTIONS[liveAgentId] || []).length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {FOLLOWUP_SUGGESTIONS[liveAgentId].map((t, ti) => (
+                            <button key={ti} className="dc-c248" onClick={() => sendLiveMessage(t)}>{t}</button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                   {m.role === 'error' && (

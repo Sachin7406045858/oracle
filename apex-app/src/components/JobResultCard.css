@@ -60,6 +60,16 @@
   margin: 8px 0;
 }
 
+.job-result-card__body a {
+  color: var(--accentText, #2E7DD6);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.job-result-card__body a:hover {
+  text-decoration: none;
+}
+
 .job-result-card__body code {
   background: rgba(0, 0, 0, 0.06);
   padding: 1px 5px;

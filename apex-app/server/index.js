@@ -48,7 +48,7 @@ app.post('/api/agent/chat', async (req, res) => {
       message: message.trim(),
       conversationId: conversationId || null,
     });
-    res.json({ conversationId: outConversationId, reply, raw });
+    res.json({ conversationId: outConversationId, reply, raw, sourcesCount: countSources(raw) });
   } catch (err) {
     console.error('[agent/chat] error:', err);
     res.status(502).json({ error: err.message || 'Agent request failed' });
@@ -67,17 +67,33 @@ app.post('/api/ap-manager/chat', async (req, res) => {
   }
 
   try {
-    const { reply } = await chatWithAgent({
+    const { reply, raw } = await chatWithAgent({
       agent: 'AP_MANAGER',
       message: message.trim(),
       conversationId: null,
     });
-    res.json({ reply });
+    res.json({ reply, sourcesCount: countSources(raw) });
   } catch (err) {
     console.error('[ap-manager/chat] error:', err);
     res.status(502).json({ error: 'Unable to get a response from AP Manager. Please try again.' });
   }
 });
+
+// Real "sources" count for a job's answer, derived only from fields Oracle
+// actually returns (confirmed via ORACLE_DEBUG logging against the live
+// API: the status-endpoint payload can carry both `citations` and
+// `supportingChunks` arrays). We count `citations` only, not the sum of
+// both arrays: in the observed payloads `supportingChunks` is the set of
+// retrieved passages *considered*, while `citations` is the subset Oracle
+// actually cited in the answer — summing them would double count the same
+// underlying documents and could show a "Sources" number bigger than what
+// the answer actually references. Never fabricated — 0/absent hides the UI.
+function countSources(raw) {
+  if (!raw || typeof raw !== 'object') return 0;
+  if (Array.isArray(raw.citations)) return raw.citations.length;
+  if (Array.isArray(raw.supportingChunks)) return raw.supportingChunks.length;
+  return 0;
+}
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
