@@ -156,7 +156,9 @@ async function getJobStatus({ agentName, jobId, token }) {
   return json;
 }
 
-const TERMINAL_STATUSES = new Set(['COMPLETED', 'SUCCEEDED', 'SUCCESS', 'DONE', 'FAILED', 'ERROR', 'CANCELLED']);
+// Confirmed via ORACLE_DEBUG logging against the real API: Oracle uses
+// "COMPLETE" (not "COMPLETED"). Keep both plus other plausible synonyms.
+const TERMINAL_STATUSES = new Set(['COMPLETE', 'COMPLETED', 'SUCCEEDED', 'SUCCESS', 'DONE', 'FAILED', 'ERROR', 'CANCELLED']);
 const FAILURE_STATUSES = new Set(['FAILED', 'ERROR', 'CANCELLED']);
 
 function jobStatusValue(job) {
