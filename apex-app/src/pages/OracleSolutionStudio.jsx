@@ -441,11 +441,6 @@ export default function OracleSolutionStudio() {
     );
   }
 
-  function renderSuggestedPrompt(t, i) {
-    return (
-      <button key={i} className="dc-c248" onClick={() => onPromptClick(t)}>{t}</button>
-    );
-  }
   function onPromptClick(t) {
     // Every suggested prompt calls the live API directly on click — no
     // predefined/static response is ever shown for any agent.
@@ -924,7 +919,6 @@ export default function OracleSolutionStudio() {
                   <option key={a.id} value={a.id}>{a.label}</option>
                 ))}
               </select>
-              {(liveAgentId === 'AP_MANAGER' ? D.AGENT_PROMPTS.ap : D.AGENT_PROMPTS.r2r).map(renderSuggestedPrompt)}
             </div>
             {suggestedAgent && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0 0', padding: '8px 12px', borderRadius: 10, background: 'var(--bg2)', border: '1px solid var(--border2)', fontSize: '12px', color: 'var(--text1)' }}>
