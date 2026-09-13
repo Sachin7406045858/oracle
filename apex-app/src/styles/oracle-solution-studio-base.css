@@ -9,3 +9,13 @@ html,body{margin:0;padding:0;height:100%;font-family:'Instrument Sans',system-ui
   @keyframes syncPulse{0%,100%{opacity:1}50%{opacity:.3}}
   @keyframes gradientDrift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
   @keyframes fadeSlideIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+
+/* Anchor the conversation to the bottom (near the composer) instead of the
+   top, so the welcome message / first replies sit just above the input
+   rather than pinned to the top with empty space below when there are few
+   messages. Grows/scrolls normally as the conversation fills up. */
+.oss-chat-scroll {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}

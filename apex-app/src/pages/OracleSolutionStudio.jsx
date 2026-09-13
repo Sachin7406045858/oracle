@@ -801,7 +801,7 @@ export default function OracleSolutionStudio() {
 
         {/* MIDDLE: CONVERSATION */}
         <main data-screen-label="AI conversation workspace" className="dc-c151">
-          <div className="dc-c185">
+          <div className="dc-c185 oss-chat-scroll">
             <div className="dc-c186">
               {showEmptyState && (() => {
                 const welcome = WELCOME_CONFIG[liveAgentId] || WELCOME_CONFIG.EMPLOYEE_QUERY_AGENT;
