@@ -19,3 +19,13 @@ html,body{margin:0;padding:0;height:100%;font-family:'Instrument Sans',system-ui
   flex-direction: column;
   justify-content: flex-end;
 }
+
+/* Force message rows (user bubbles, assistant reply cards) to use the full
+   available width of the conversation column — some content (Job Result
+   card, rich cards) was rendering narrower/centered than intended. */
+.oss-chat-scroll .dc-c186 {
+  width: 100%;
+}
+.oss-chat-scroll .dc-c186 > * {
+  width: 100%;
+}

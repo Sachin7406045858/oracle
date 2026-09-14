@@ -4,6 +4,8 @@
   background: var(--dc-surface-subtle, #f4fbf8);
   overflow: hidden;
   margin: 6px 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .job-result-card__header {
