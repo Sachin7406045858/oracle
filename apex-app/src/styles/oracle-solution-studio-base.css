@@ -17,7 +17,9 @@ html,body{margin:0;padding:0;height:100%;font-family:'Instrument Sans',system-ui
 .oss-chat-scroll {
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+}
+.oss-chat-scroll .dc-c186 {
+  margin-top: auto;
 }
 
 /* Force message rows (user bubbles, assistant reply cards) to use the full
