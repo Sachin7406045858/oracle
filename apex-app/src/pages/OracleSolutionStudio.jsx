@@ -195,6 +195,44 @@ export default function OracleSolutionStudio() {
     }, 700);
   }
 
+  // Lets the user pick individual chat replies to export (PDF/XLS/Email)
+  // via the Studio panel, alongside the existing rich-card "stat" batches.
+  // Each checked message becomes one row keyed by its message index; the
+  // short description shown next to the checkbox is just a truncated
+  // preview of that reply's own text, never fabricated content.
+  function toggleMessageExport(i) {
+    const m = liveMessages[i];
+    if (!m) return;
+    const itemKey = `msg-${i}`;
+    const title = 'Chat responses';
+    setExportBatch((prev) => {
+      const baseItems = prev && prev.title === title ? prev.items : [];
+      const exists = baseItems.some((it) => it.key === itemKey);
+      let items;
+      if (exists) {
+        items = baseItems.filter((it) => it.key !== itemKey);
+      } else {
+        const shortDesc = m.text.replace(/\s+/g, ' ').trim().slice(0, 90);
+        const agentLabel = LIVE_AGENTS.find((a) => a.id === liveAgentId)?.label || 'Agent';
+        const time = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        items = [
+          ...baseItems,
+          {
+            key: itemKey,
+            label: shortDesc + (m.text.length > 90 ? '…' : ''),
+            sublabel: `${agentLabel} · ${time}`,
+            selected: true,
+          },
+        ];
+      }
+      if (items.length === 0) return null;
+      return { title, unit: 'response', loading: false, error: null, status: '', items };
+    });
+    setRightOpen(true);
+  }
+  const isMessageQueuedForExport = (i) =>
+    !!(exportBatch && exportBatch.title === 'Chat responses' && exportBatch.items.some((it) => it.key === `msg-${i}`));
+
   const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
   const isAllowedEmail = (v) => isValidEmail(v) && v.toLowerCase().endsWith(D.EMAIL_DOMAIN);
 
@@ -824,6 +862,17 @@ export default function OracleSolutionStudio() {
                         <span className="dc-c170">· Oracle Fusion AI agent</span>
                       </div>
                       <AgentReply agentId={liveAgentId} text={m.text} onQuickAction={sendLiveMessage} />
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 6, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={isMessageQueuedForExport(i)}
+                          onChange={() => toggleMessageExport(i)}
+                          style={{ marginTop: 2, flex: 'none', cursor: 'pointer' }}
+                        />
+                        <span style={{ fontSize: '11.5px', color: 'var(--text2)', lineHeight: 1.4 }}>
+                          Add to export — <span style={{ color: 'var(--text1)' }}>{m.text.replace(/\s+/g, ' ').trim().slice(0, 90)}{m.text.length > 90 ? '…' : ''}</span>
+                        </span>
+                      </label>
                       {m.sourcesCount > 0 && (
                         <div>
                           <button
