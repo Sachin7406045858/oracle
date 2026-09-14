@@ -563,47 +563,10 @@ export default function OracleSolutionStudio() {
         </div>
 
         <div className="dc-c14" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginRight: '4px' }}>
-            {ACCENT_OPTIONS.map((opt, i) => (
-              <button
-                key={opt.color}
-                title={opt.color}
-                onClick={() => setAccentIdx(i)}
-                style={{
-                  width: 16, height: 16, borderRadius: '50%', background: opt.color, cursor: 'pointer',
-                  border: i === accentIdx ? '2px solid var(--text0)' : '2px solid transparent',
-                  padding: 0,
-                }}
-              />
-            ))}
-          </div>
           <button title="Toggle theme" className="dc-c99" onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}>
             <img src={up('icons/icon-a638347ce9.svg')} width="18" height="18" alt="" style={{ display: theme === 'dark' ? '' : 'none' }} />
             <img src={up('icons/icon-7c44d6e7c1.svg')} width="18" height="18" alt="" style={{ display: theme === 'dark' ? 'none' : '' }} />
           </button>
-          <div className="dc-c19" style={{ position: 'relative' }}>
-            <div className="dc-c102" onClick={() => { setAgentMenuOpen((v) => !v); setUserMenuOpen(false); }}>
-              <div className="dc-c103">
-                <img src={up('icons/icon-92a3531814.svg')} width="14" height="14" alt="" />
-              </div>
-              <span className="dc-c22">{D.AGENTS[0].name}</span>
-              <img src={up('icons/icon-40e62d5896.svg')} width="13" height="13" alt="" className="dc-c23" style={{ transform: agentMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
-            </div>
-            {agentMenuOpen && (
-              <div className="dc-c104" style={{ width: 320 }}>
-                {D.AGENTS.map((a) => (
-                  <div key={a.id} className="dc-c105" onClick={() => setAgentMenuOpen(false)}>
-                    <span style={{ flex: 1 }}>{a.name}</span>
-                    {a.id === D.AGENTS[0].id && (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent,#E31837)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                    )}
-                  </div>
-                ))}
-                <div className="dc-c106" />
-                <div className="dc-c105" style={{ justifyContent: 'center', color: 'var(--text1)' }} onClick={() => setAgentMenuOpen(false)}>Configure agent</div>
-              </div>
-            )}
-          </div>
           <div className="dc-c19" style={{ position: 'relative' }}>
             <div className="dc-c102" onClick={() => { setUserMenuOpen((v) => !v); setAgentMenuOpen(false); }}>
               <div className="dc-c103">
@@ -907,19 +870,6 @@ export default function OracleSolutionStudio() {
           </div>
 
           <div className="dc-c246">
-            <div className="dc-c247" style={{ alignItems: 'center', gap: '8px' }}>
-              <select
-                aria-label="Select Oracle Fusion agent"
-                value={liveAgentId}
-                onChange={(e) => { setLiveAgentId(e.target.value); setLiveConversationId(null); }}
-                className="dc-c248"
-                style={{ cursor: 'pointer' }}
-              >
-                {LIVE_AGENTS.map((a) => (
-                  <option key={a.id} value={a.id}>{a.label}</option>
-                ))}
-              </select>
-            </div>
             {suggestedAgent && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0 0', padding: '8px 12px', borderRadius: 10, background: 'var(--bg2)', border: '1px solid var(--border2)', fontSize: '12px', color: 'var(--text1)' }}>
                 <span style={{ flex: 1 }}>This looks like a {AGENT_LABELS[suggestedAgent]} question — switch agent?</span>
