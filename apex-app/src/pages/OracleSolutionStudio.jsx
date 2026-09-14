@@ -862,31 +862,34 @@ export default function OracleSolutionStudio() {
                         <span className="dc-c170">· Oracle Fusion AI agent</span>
                       </div>
                       <AgentReply agentId={liveAgentId} text={m.text} onQuickAction={sendLiveMessage} />
-                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 6, cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={isMessageQueuedForExport(i)}
-                          onChange={() => toggleMessageExport(i)}
-                          style={{ marginTop: 2, flex: 'none', cursor: 'pointer' }}
-                        />
-                        <span style={{ fontSize: '11.5px', color: 'var(--text2)', lineHeight: 1.4 }}>
-                          Add to export — <span style={{ color: 'var(--text1)' }}>{m.text.replace(/\s+/g, ' ').trim().slice(0, 90)}{m.text.length > 90 ? '…' : ''}</span>
-                        </span>
-                      </label>
-                      {m.sourcesCount > 0 && (
-                        <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          {m.sourcesCount > 0 && (
+                            <button
+                              className="dc-c248"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                              onClick={() => setExpandedSources((s) => ({ ...s, [i]: !s[i] }))}
+                            >
+                              📄 Sources ({m.sourcesCount})
+                            </button>
+                          )}
                           <button
                             className="dc-c248"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                            onClick={() => setExpandedSources((s) => ({ ...s, [i]: !s[i] }))}
+                            title={isMessageQueuedForExport(i) ? 'Remove from export' : 'Add to export'}
+                            onClick={() => toggleMessageExport(i)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              color: isMessageQueuedForExport(i) ? 'var(--accentText,#2E7DD6)' : undefined,
+                              borderColor: isMessageQueuedForExport(i) ? 'var(--accentText,#2E7DD6)' : undefined,
+                            }}
                           >
-                            📄 Sources ({m.sourcesCount})
+                            {isMessageQueuedForExport(i) ? '✓ Added to export' : '+ Add to export'}
                           </button>
-                          {expandedSources[i] && (
-                            <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--text2)' }}>
-                              {m.sourcesCount} source{m.sourcesCount > 1 ? 's' : ''} found
-                            </div>
-                          )}
+                      </div>
+                      {expandedSources[i] && (
+                        <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--text2)' }}>
+                          {m.sourcesCount} source{m.sourcesCount > 1 ? 's' : ''} found
                         </div>
                       )}
                       {(FOLLOWUP_SUGGESTIONS[liveAgentId] || []).length > 0 && (
