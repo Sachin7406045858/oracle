@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Oracle Partner Award 2026 — Tech Mahindra Screen Saver</title>
+<style>
+  /* Tech Mahindra brand palette */
+  :root {
+    --mahindra-red: #E31837;
+    --blueprint-navy: #0A0838;
+    --white: #FFFFFF;
+    --impact-red: #5F0229;
+    --clarity-grey-1: #F6F2EA;
+    --clarity-grey-2: #E5DFD3;
+    --anchor-grey-1: #4A453D;
+    --anchor-grey-2: #29251D;
+    --steel-grey: #4D4D4F;
+    /* award accent (used sparingly) */
+    --gold: #D4B26A;
+    --gold-light: #EED9A4;
+    --gold-deep: #A9853F;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--blueprint-navy); }
+  body { font-family: "Inter Display", "Inter", system-ui, sans-serif; color: var(--white);
+         -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+
+  .canvas { position: relative; width: 1920px; height: 1080px; overflow: hidden;
+    background:
+      radial-gradient(1100px 760px at 1480px 470px, rgba(46, 52, 168, 0.42), rgba(10, 8, 56, 0) 70%),
+      radial-gradient(900px 600px at 160px 1080px, rgba(95, 2, 41, 0.38), rgba(10, 8, 56, 0) 70%),
+      linear-gradient(180deg, #0B0940 0%, #0A0838 55%, #08062C 100%);
+  }
+  canvas#fx, svg.trails { position: absolute; inset: 0; }
+
+  /* fine blueprint grid, fading out toward the text column */
+  .grid { position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 64px 64px;
+    -webkit-mask-image: radial-gradient(900px 700px at 1500px 460px, #000 0%, transparent 75%);
+            mask-image: radial-gradient(900px 700px at 1500px 460px, #000 0%, transparent 75%);
+  }
+
+  /* ---------- Logo lockup ---------- */
+  .logos { position: absolute; top: 64px; left: 128px; height: 92px;
+    display: flex; align-items: center; gap: 32px; padding: 0 36px;
+    background: var(--white); border-radius: 14px;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.35); }
+  .logos.no-plate { background: transparent; box-shadow: none; padding: 0; }
+  .logo-slot { height: 52px; display: flex; align-items: center; justify-content: center; }
+  .logo-slot img { height: 100%; width: auto; display: block; }  /* proportional — never stretched */
+  .logo-slot.placeholder { width: 230px; border: 2px dashed #B9B3A7; border-radius: 8px;
+    font: 600 15px "Inter", sans-serif; color: var(--steel-grey); letter-spacing: .02em; }
+  .logos.blank .logo-slot.placeholder { border-color: transparent; color: transparent; }
+  .logo-divider { width: 1.5px; height: 52px; background: var(--clarity-grey-2); }
+
+  /* ---------- Hero ---------- */
+  .hero { position: absolute; left: 128px; top: 300px; width: 1180px; }
+  .eyebrow { display: flex; align-items: center; gap: 18px;
+    font-weight: 600; font-size: 30px; letter-spacing: 0.01em; color: var(--white); }
+  .eyebrow .bar { width: 56px; height: 4px; background: var(--mahindra-red); border-radius: 2px; }
+  .eyebrow .year { color: var(--gold-light); }
+  h1 { margin-top: 30px; font-weight: 800; font-size: 118px; line-height: 1.0;
+       letter-spacing: -0.032em; color: var(--white); }
+  h1 .l2 { display: block; }
+  .rule { margin-top: 34px; width: 120px; height: 4px; border-radius: 2px;
+    background: linear-gradient(90deg, var(--mahindra-red), var(--impact-red)); }
+
+  /* ---------- Recognitions (equal weight) ---------- */
+  .awards { position: absolute; left: 128px; top: 724px; display: flex; gap: 36px; }
+  .award { position: relative; width: 600px; height: 196px; padding: 0 40px 0 32px;
+    display: flex; align-items: center; gap: 28px; border-radius: 18px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.075), rgba(255,255,255,0.025));
+    border: 1px solid rgba(255,255,255,0.13);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 30px 60px rgba(3, 2, 25, 0.45);
+    backdrop-filter: blur(6px); overflow: hidden; }
+  .award::before { content: ""; position: absolute; left: 0; top: 28px; bottom: 28px; width: 4px;
+    background: var(--mahindra-red); border-radius: 0 3px 3px 0; }
+  .award .emblem { flex: none; width: 128px; height: 128px; }
+  .award .text { font-weight: 700; font-size: 38px; line-height: 1.16; letter-spacing: -0.012em; }
+  .award .text .region { color: var(--white); }
+  .award .text .dash { color: var(--mahindra-red); }
+
+  /* bottom hairline */
+  .baseline { position: absolute; left: 128px; right: 128px; bottom: 56px; height: 1px;
+    background: linear-gradient(90deg, var(--mahindra-red) 0 72px, rgba(255,255,255,0.18) 72px, rgba(255,255,255,0) 100%); }
+</style>
+</head>
+<body>
+<div class="canvas" id="canvas">
+  <div class="grid"></div>
+  <canvas id="fx" width="1920" height="1080"></canvas>
+
+  <!-- flowing light trails -->
+  <svg class="trails" width="1920" height="1080" viewBox="0 0 1920 1080">
+    <defs>
+      <linearGradient id="tBlue" x1="0" x2="1" y1="0" y2="0">
+        <stop offset="0" stop-color="#5D7BFF" stop-opacity="0"/>
+        <stop offset=".55" stop-color="#7FA2FF" stop-opacity=".55"/>
+        <stop offset=".85" stop-color="#C9D8FF" stop-opacity=".9"/>
+        <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="tRed" x1="0" x2="1" y1="0" y2="0">
+        <stop offset="0" stop-color="#E31837" stop-opacity="0"/>
+        <stop offset=".6" stop-color="#E31837" stop-opacity=".75"/>
+        <stop offset="1" stop-color="#FF6B7F" stop-opacity="0"/>
+      </linearGradient>
+      <filter id="glow" x="-10%" y="-50%" width="120%" height="200%">
+        <feGaussianBlur stdDeviation="6"/>
+      </filter>
+    </defs>
+    <g fill="none" stroke-linecap="round">
+      <!-- glow layers -->
+      <path d="M -60 1010 C 420 930, 760 960, 1080 860 S 1560 560, 1990 470" stroke="url(#tBlue)" stroke-width="10" opacity=".35" filter="url(#glow)"/>
+      <path d="M 300 1100 C 700 980, 1000 1000, 1300 880 S 1720 650, 1990 610" stroke="url(#tRed)" stroke-width="8" opacity=".35" filter="url(#glow)"/>
+      <!-- crisp trails -->
+      <path d="M -60 1010 C 420 930, 760 960, 1080 860 S 1560 560, 1990 470" stroke="url(#tBlue)" stroke-width="2"/>
+      <path d="M -60 1040 C 460 960, 800 990, 1120 890 S 1600 600, 1990 520" stroke="url(#tBlue)" stroke-width="1" opacity=".6"/>
+      <path d="M 120 1100 C 560 1000, 880 1030, 1180 930 S 1640 660, 1990 570" stroke="url(#tBlue)" stroke-width="1" opacity=".4"/>
+      <path d="M 300 1100 C 700 980, 1000 1000, 1300 880 S 1720 650, 1990 610" stroke="url(#tRed)" stroke-width="1.6"/>
+      <path d="M 1000 -40 C 1240 120, 1420 160, 1700 140 S 1900 110, 1990 60" stroke="url(#tBlue)" stroke-width="1" opacity=".35"/>
+    </g>
+  </svg>
+
+  <!-- Logo lockup: drop official files into assets/logos/ (see README) -->
+  <div class="logos" id="logos">
+    <div class="logo-slot" data-logo="techmahindra">Tech Mahindra logo</div>
+    <div class="logo-divider"></div>
+    <div class="logo-slot" data-logo="oracle-partner">Oracle Partner logo</div>
+  </div>
+
+  <div class="hero">
+    <div class="eyebrow">
+      <span class="bar"></span>
+      <span>Oracle Partner Award <span class="year">2026</span> Winner</span>
+    </div>
+    <h1>Cloud Certification<span class="l2">Rising Star</span></h1>
+    <div class="rule"></div>
+  </div>
+
+  <div class="awards">
+    <div class="award">
+      <svg class="emblem" data-emblem></svg>
+      <div class="text">Cloud Certification<br>Rising Star <span class="dash">–</span> <span class="region">Global</span></div>
+    </div>
+    <div class="award">
+      <svg class="emblem" data-emblem></svg>
+      <div class="text">Cloud Certification<br>Rising Star <span class="dash">–</span> <span class="region">APAC</span></div>
+    </div>
+  </div>
+
+  <div class="baseline"></div>
+</div>
+
+<script>
+/* ---------- deterministic RNG so every render is identical ---------- */
+let seed = 20261105;
+const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+
+/* ---------- gold laurel emblem (identical for both awards) ---------- */
+function laurelSVG() {
+  const cx = 64, cy = 62, R = 48, parts = [];
+  parts.push(`<defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#EED9A4"/><stop offset=".5" stop-color="#D4B26A"/><stop offset="1" stop-color="#A9853F"/>
+  </linearGradient></defs>`);
+  // one branch (left side); theta measured from the bottom of the circle, sweeping up
+  const branch = [];
+  const P = th => [cx - R * Math.sin(th), cy + R * Math.cos(th)];
+  let d = "";
+  for (let i = 0; i <= 40; i++) { const [x, y] = P((18 + i * 3.35) * Math.PI / 180); d += (i ? "L" : "M") + x.toFixed(2) + " " + y.toFixed(2); }
+  branch.push(`<path d="${d}" fill="none" stroke="url(#gold)" stroke-width="1.6" stroke-linecap="round"/>`);
+  const n = 7;
+  for (let i = 0; i < n; i++) {
+    const thDeg = 30 + i * 18.5, th = thDeg * Math.PI / 180, [x, y] = P(th);
+    const phi = Math.atan2(-Math.sin(th), -Math.cos(th)) * 180 / Math.PI;   // tangent (growth direction)
+    const k = 1 - i * 0.06;
+    for (const off of [-38, 38]) {
+      branch.push(`<ellipse cx="${(8 * k).toFixed(2)}" cy="0" rx="${(8.5 * k).toFixed(2)}" ry="${(3.3 * k).toFixed(2)}"
+        transform="translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${(phi + off).toFixed(1)})" fill="url(#gold)"/>`);
+    }
+  }
+  // tip leaf
+  { const th = 152 * Math.PI / 180, [x, y] = P(th), phi = Math.atan2(-Math.sin(th), -Math.cos(th)) * 180 / Math.PI;
+    branch.push(`<ellipse cx="7" cy="0" rx="7.5" ry="3" transform="translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${phi.toFixed(1)})" fill="url(#gold)"/>`); }
+  const b = branch.join("");
+  parts.push(`<g>${b}</g><g transform="translate(128 0) scale(-1 1)">${b}</g>`);
+  // star
+  const star = [];
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? 9.5 : 23, a = -Math.PI / 2 + i * Math.PI / 5;
+    star.push((cx + Math.cos(a) * r).toFixed(2) + "," + (cy - 1 + Math.sin(a) * r).toFixed(2));
+  }
+  parts.push(`<polygon points="${star.join(" ")}" fill="url(#gold)"/>`);
+  return parts.join("");
+}
+document.querySelectorAll("[data-emblem]").forEach((el, i) => {
+  el.setAttribute("viewBox", "0 0 128 128");
+  el.innerHTML = laurelSVG().replaceAll('id="gold"', `id="gold${i}"`).replaceAll("url(#gold)", `url(#gold${i})`);
+});
+
+/* ---------- abstract digital cloud ---------- */
+const cv = document.getElementById("fx"), ctx = cv.getContext("2d");
+const circles = [ // cloud silhouette built from overlapping circles
+  { x: 1330, y: 470, r: 150 }, { x: 1500, y: 380, r: 205 }, { x: 1680, y: 470, r: 150 },
+  { x: 1240, y: 560, r: 105 }, { x: 1770, y: 560, r: 100 }, { x: 1410, y: 560, r: 150 }, { x: 1590, y: 560, r: 150 },
+];
+const flatY = 640; // flat cloud base
+const inside = (x, y, pad = 0) => y <= flatY - pad && circles.some(c => Math.hypot(x - c.x, y - c.y) < c.r - pad);
+
+// soft glow behind cloud
+const g = ctx.createRadialGradient(1500, 470, 40, 1500, 470, 520);
+g.addColorStop(0, "rgba(90,120,255,0.20)"); g.addColorStop(1, "rgba(90,120,255,0)");
+ctx.fillStyle = g; ctx.fillRect(0, 0, 1920, 1080);
+
+// outline particles (dotted silhouette)
+function outline(offset, step, alpha, size) {
+  for (const c of circles) {
+    const r = c.r + offset, n = Math.round(2 * Math.PI * r / step);
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2, x = c.x + Math.cos(a) * r, y = c.y + Math.sin(a) * r;
+      if (y > flatY + offset) continue;
+      if (circles.some(o => o !== c && Math.hypot(x - o.x, y - o.y) < o.r + offset - 0.5)) continue;
+      ctx.fillStyle = `rgba(200,215,255,${alpha})`;
+      ctx.beginPath(); ctx.arc(x, y, size, 0, 7); ctx.fill();
+    }
+  }
+  // base line
+  const minX = 1240 - 105 + 20, maxX = 1770 + 100 - 20;
+  for (let x = minX; x <= maxX; x += step) {
+    if (!inside(x, flatY + offset - 2, -Math.abs(offset) - 4)) continue;
+    ctx.fillStyle = `rgba(200,215,255,${alpha})`;
+    ctx.beginPath(); ctx.arc(x, flatY + offset, size, 0, 7); ctx.fill();
+  }
+}
+outline(0, 7, 0.85, 1.6);
+outline(22, 11, 0.32, 1.2);
+outline(46, 16, 0.14, 1.0);
+
+// interior node network
+const nodes = [];
+while (nodes.length < 170) {
+  const x = 1120 + rnd() * 760, y = 160 + rnd() * 500;
+  if (inside(x, y, 12)) nodes.push({ x, y, s: rnd() });
+}
+ctx.lineWidth = 0.8;
+for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+  const d = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
+  if (d < 70) { ctx.strokeStyle = `rgba(140,165,255,${0.22 * (1 - d / 70)})`; ctx.beginPath();
+    ctx.moveTo(nodes[i].x, nodes[i].y); ctx.lineTo(nodes[j].x, nodes[j].y); ctx.stroke(); }
+}
+for (const n of nodes) {
+  const r = 0.8 + n.s * 1.8;
+  ctx.fillStyle = `rgba(220,230,255,${0.35 + n.s * 0.55})`;
+  ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 7); ctx.fill();
+}
+// a few highlighted nodes (red / white glow)
+[[1445, 330, "227,24,55"], [1652, 448, "255,255,255"], [1292, 566, "255,255,255"]].forEach(([x, y, c]) => {
+  const gg = ctx.createRadialGradient(x, y, 0, x, y, 18);
+  gg.addColorStop(0, `rgba(${c},0.9)`); gg.addColorStop(1, `rgba(${c},0)`);
+  ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(x, y, 18, 0, 7); ctx.fill();
+  ctx.fillStyle = `rgb(${c})`; ctx.beginPath(); ctx.arc(x, y, 2.6, 0, 7); ctx.fill();
+});
+
+// ambient drifting particles across the canvas (sparser on the text side)
+for (let i = 0; i < 260; i++) {
+  const x = rnd() * 1920, y = rnd() * 1080;
+  const w = Math.min(1, Math.max(0.12, (x - 700) / 1000));
+  ctx.fillStyle = `rgba(190,205,255,${(0.08 + rnd() * 0.35) * w})`;
+  ctx.beginPath(); ctx.arc(x, y, 0.6 + rnd() * 1.3, 0, 7); ctx.fill();
+}
+
+/* ---------- logos: load official files if present, never resize disproportionately ---------- */
+const params = new URLSearchParams(location.search);
+if (params.get("plate") === "0") document.getElementById("logos").classList.add("no-plate");
+if (params.get("blank") === "1") document.getElementById("logos").classList.add("blank");
+window.__logosReady = Promise.all([...document.querySelectorAll("[data-logo]")].map(slot => {
+  const name = slot.dataset.logo, exts = ["svg", "png", "webp", "jpg"];
+  return new Promise(res => {
+    const tryExt = i => {
+      if (i >= exts.length) { slot.classList.add("placeholder"); return res(false); }
+      const img = new Image();
+      img.onload = () => { slot.textContent = ""; slot.appendChild(img); res(true); };
+      img.onerror = () => tryExt(i + 1);
+      img.alt = name; img.src = `assets/logos/${name}.${exts[i]}`;
+    };
+    tryExt(0);
+  });
+}));
+</script>
+</body>
+</html>
