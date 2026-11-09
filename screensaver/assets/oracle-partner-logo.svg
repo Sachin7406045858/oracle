@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 120" role="img" aria-label="Oracle Partner">
+  <!-- Placeholder lockup. Replace with the official Oracle PartnerNetwork logo
+       from the Oracle Partner brand kit before external distribution. -->
+  <rect x="0" y="0" width="520" height="120" rx="10" fill="#ffffff"/>
+  <text x="34" y="80" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="700"
+        letter-spacing="3" fill="#C74634">ORACLE</text>
+  <line x1="300" y1="26" x2="300" y2="94" stroke="#C74634" stroke-width="3"/>
+  <text x="322" y="80" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="400"
+        fill="#312D2A">Partner</text>
+</svg>
